@@ -133,33 +133,30 @@ public abstract class AbstractInvoker<T> implements Invoker<T> {
 
     @Override
     public Result invoke(Invocation inv) throws RpcException {
-        // if invoker is destroyed due to address refresh from registry, let's allow the current invoke to proceed
+        // 如果当前Invoker已经被销毁，则打印日志
         if (destroyed.get()) {
             logger.warn("Invoker for service " + this + " on consumer " + NetUtils.getLocalHost() + " is destroyed, "
                     + ", dubbo version is " + Version.getVersion() + ", this invoker should not be used any longer");
         }
         RpcInvocation invocation = (RpcInvocation) inv;
         invocation.setInvoker(this);
+        // 为invocation添加附加字段集合
         if (CollectionUtils.isNotEmptyMap(attachment)) {
             invocation.addObjectAttachmentsIfAbsent(attachment);
         }
-
+        // 将RpcContext的附加信息添加为Invocation的附加信息
         Map<String, Object> contextAttachments = RpcContext.getContext().getObjectAttachments();
         if (CollectionUtils.isNotEmptyMap(contextAttachments)) {
-            /**
-             * invocation.addAttachmentsIfAbsent(context){@link RpcInvocation#addAttachmentsIfAbsent(Map)}should not be used here,
-             * because the {@link RpcContext#setAttachment(String, String)} is passed in the Filter when the call is triggered
-             * by the built-in retry mechanism of the Dubbo. The attachment to update RpcContext will no longer work, which is
-             * a mistake in most cases (for example, through Filter to RpcContext output traceId and spanId and other information).
-             */
             invocation.addObjectAttachments(contextAttachments);
         }
-
+        // 设置此次是异步调用还是同步调用
         invocation.setInvokeMode(RpcUtils.getInvokeMode(url, invocation));
+        // 如果是异步调用，则为这次调用设置一个唯一ID
         RpcUtils.attachInvocationIdIfAsync(getUrl(), invocation);
 
         AsyncRpcResult asyncResult;
         try {
+            // 调用子类实现
             asyncResult = (AsyncRpcResult) doInvoke(invocation);
         } catch (InvocationTargetException e) { // biz exception
             Throwable te = e.getTargetException();

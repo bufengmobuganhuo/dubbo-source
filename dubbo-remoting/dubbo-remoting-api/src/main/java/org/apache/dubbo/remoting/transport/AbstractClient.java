@@ -53,12 +53,13 @@ public abstract class AbstractClient extends AbstractEndpoint implements Client 
 
     public AbstractClient(URL url, ChannelHandler handler) throws RemotingException {
         super(url, handler);
-
+        // 解析URL，初始化值
         needReconnect = url.getParameter(Constants.SEND_RECONNECT_KEY, false);
-
+        // 解析URL，初始化executor
         initExecutor(url);
 
         try {
+            // 调用具体实现
             doOpen();
         } catch (Throwable t) {
             close();
@@ -67,12 +68,13 @@ public abstract class AbstractClient extends AbstractEndpoint implements Client 
                             + " connect to the server " + getRemoteAddress() + ", cause: " + t.getMessage(), t);
         }
         try {
-            // connect.
+            // 创建底层链接
             connect();
             if (logger.isInfoEnabled()) {
                 logger.info("Start " + getClass().getSimpleName() + " " + NetUtils.getLocalAddress() + " connect to the server " + getRemoteAddress());
             }
         } catch (RemotingException t) {
+            // 如果配置了链接检查，那么连接异常后回关闭连接
             if (url.getParameter(Constants.CHECK_KEY, true)) {
                 close();
                 throw t;

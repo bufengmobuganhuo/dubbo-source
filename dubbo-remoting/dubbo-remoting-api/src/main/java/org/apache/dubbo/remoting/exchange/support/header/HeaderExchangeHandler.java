@@ -171,9 +171,12 @@ public class HeaderExchangeHandler implements ChannelHandlerDelegate {
             if (request.isEvent()) {
                 handlerEvent(channel, request);
             } else {
+                // 如果是双向的，则
                 if (request.isTwoWay()) {
+                    // 会生成一个调用结果（Response对象），通过channel发送给客户端
                     handleRequest(exchangeChannel, request);
                 } else {
+                    // 直接交给上层的 DubboProtocol.requestHandler，完成方法调用之后，不会返回任何 Response。
                     handler.received(exchangeChannel, request.getData());
                 }
             }

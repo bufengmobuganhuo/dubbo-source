@@ -38,6 +38,7 @@ public class InternalThreadLocal<V> {
     private final int index;
 
     public InternalThreadLocal() {
+        // 通过自增InternalThreadLocalMap.NEXT_INDEX初始化index,这个index就是保存value的位置
         index = InternalThreadLocalMap.nextVariableIndex();
     }
 
@@ -85,20 +86,6 @@ public class InternalThreadLocal<V> {
     }
 
     @SuppressWarnings("unchecked")
-    private static void addToVariablesToRemove(InternalThreadLocalMap threadLocalMap, InternalThreadLocal<?> variable) {
-        Object v = threadLocalMap.indexedVariable(VARIABLES_TO_REMOVE_INDEX);
-        Set<InternalThreadLocal<?>> variablesToRemove;
-        if (v == InternalThreadLocalMap.UNSET || v == null) {
-            variablesToRemove = Collections.newSetFromMap(new IdentityHashMap<InternalThreadLocal<?>, Boolean>());
-            threadLocalMap.setIndexedVariable(VARIABLES_TO_REMOVE_INDEX, variablesToRemove);
-        } else {
-            variablesToRemove = (Set<InternalThreadLocal<?>>) v;
-        }
-
-        variablesToRemove.add(variable);
-    }
-
-    @SuppressWarnings("unchecked")
     private static void removeFromVariablesToRemove(InternalThreadLocalMap threadLocalMap, InternalThreadLocal<?> variable) {
 
         Object v = threadLocalMap.indexedVariable(VARIABLES_TO_REMOVE_INDEX);
@@ -139,17 +126,46 @@ public class InternalThreadLocal<V> {
     }
 
     /**
+     * Returns the initial value for this thread-local variable.
+     */
+    protected V initialValue() throws Exception {
+        return null;
+    }
+
+    /**
      * Sets the value for the current thread.
+     * 可以看到这个方法并没有更新index，说明一个InternalThreadLocal只能存储一个值，存储的位置就是InternalThreadLocalMap给他分配好的位置
+     * 每个线程绑定一个新的InternalThreadLocalMap对象
      */
     public final void set(V value) {
+        // 如果要存储的是null或UNSERT，直接清除
         if (value == null || value == InternalThreadLocalMap.UNSET) {
             remove();
         } else {
+            // 获取与当前线程绑定的InternalThreadLocalMap
+            // 里面有一句： thread.setThreadLocalMap(threadLocalMap = new InternalThreadLocalMap()
             InternalThreadLocalMap threadLocalMap = InternalThreadLocalMap.get();
+            // 将value存储到InternalThreadLocalMap.indexedVariables集合中
             if (threadLocalMap.setIndexedVariable(index, value)) {
+                // 将当前InternalThreadLocal记录到待删除集合中
                 addToVariablesToRemove(threadLocalMap, this);
             }
         }
+    }
+
+    @SuppressWarnings("unchecked")
+    private static void addToVariablesToRemove(InternalThreadLocalMap threadLocalMap, InternalThreadLocal<?> variable) {
+        // 获取到的就是待删除集合，他存储了"绑定到当前线程的所有InternalThreadLocal"
+        Object v = threadLocalMap.indexedVariable(VARIABLES_TO_REMOVE_INDEX);
+        Set<InternalThreadLocal<?>> variablesToRemove;
+        if (v == InternalThreadLocalMap.UNSET || v == null) {
+            variablesToRemove = Collections.newSetFromMap(new IdentityHashMap<InternalThreadLocal<?>, Boolean>());
+            threadLocalMap.setIndexedVariable(VARIABLES_TO_REMOVE_INDEX, variablesToRemove);
+        } else {
+            variablesToRemove = (Set<InternalThreadLocal<?>>) v;
+        }
+
+        variablesToRemove.add(variable);
     }
 
     /**
@@ -181,13 +197,6 @@ public class InternalThreadLocal<V> {
                 throw new RuntimeException(e);
             }
         }
-    }
-
-    /**
-     * Returns the initial value for this thread-local variable.
-     */
-    protected V initialValue() throws Exception {
-        return null;
     }
 
     /**

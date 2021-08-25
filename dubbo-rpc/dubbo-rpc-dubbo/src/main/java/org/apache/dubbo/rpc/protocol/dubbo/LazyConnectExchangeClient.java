@@ -81,6 +81,7 @@ final class LazyConnectExchangeClient implements ExchangeClient {
             if (client != null) {
                 return;
             }
+            // 通过Exchangers门面类，创建ExchangeClient对象
             this.client = Exchangers.connect(url, requestHandler);
         } finally {
             connectLock.unlock();

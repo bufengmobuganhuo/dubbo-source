@@ -156,6 +156,10 @@ final class ReferenceCountExchangeClient implements ExchangeClient {
 
     @Override
     public void close(int timeout) {
+        /**
+         * 引用次数减到0，关闭底层的ExchangeClient，具体操作有：停止心跳任务，重连任务，
+         * 见{@link org.apache.dubbo.remoting.exchange.support.header.HeaderExchangeClient}
+         */
         if (referenceCount.decrementAndGet() <= 0) {
             if (timeout == 0) {
                 client.close();
@@ -163,7 +167,7 @@ final class ReferenceCountExchangeClient implements ExchangeClient {
             } else {
                 client.close(timeout);
             }
-
+            // 创建LazyConnectExchangeClient，并将client字段指向该对象
             replaceWithLazyClient();
         }
     }

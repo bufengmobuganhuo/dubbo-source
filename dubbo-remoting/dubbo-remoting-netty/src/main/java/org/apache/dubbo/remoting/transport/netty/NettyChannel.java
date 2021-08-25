@@ -95,12 +95,15 @@ final class NettyChannel extends AbstractChannel {
 
     @Override
     public void send(Object message, boolean sent) throws RemotingException {
+        // 调用AbstractChannel的send()方法检测连接是否可用
         super.send(message, sent);
 
         boolean success = true;
         int timeout = 0;
         try {
+            // 依赖Netty框架的Channel发送数据
             ChannelFuture future = channel.write(message);
+            // 在超时时间内等待发送结束
             if (sent) {
                 timeout = getUrl().getPositiveParameter(TIMEOUT_KEY, DEFAULT_TIMEOUT);
                 success = future.await(timeout);
@@ -112,7 +115,7 @@ final class NettyChannel extends AbstractChannel {
         } catch (Throwable e) {
             throw new RemotingException(this, "Failed to send message " + PayloadDropper.getRequestWithoutData(message) + " to " + getRemoteAddress() + ", cause: " + e.getMessage(), e);
         }
-
+        // 发送不成功，抛出异常
         if (!success) {
             throw new RemotingException(this, "Failed to send message " + PayloadDropper.getRequestWithoutData(message) + " to " + getRemoteAddress()
                     + "in timeout(" + timeout + "ms) limit");

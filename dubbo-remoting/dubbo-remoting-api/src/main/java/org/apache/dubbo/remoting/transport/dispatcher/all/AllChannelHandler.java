@@ -37,8 +37,10 @@ public class AllChannelHandler extends WrappedChannelHandler {
 
     @Override
     public void connected(Channel channel) throws RemotingException {
+        // 照当前端点（Server/Client）的 URL 从 ExecutorRepository 中获取相应的公共线程池
         ExecutorService executor = getExecutorService();
         try {
+            // 将CONNECTED事件封装成一个Runnable交给线程池处理
             executor.execute(new ChannelEventRunnable(channel, handler, ChannelState.CONNECTED));
         } catch (Throwable t) {
             throw new ExecutionException("connect event", channel, getClass() + " error when process connected event .", t);
@@ -57,6 +59,7 @@ public class AllChannelHandler extends WrappedChannelHandler {
 
     @Override
     public void received(Channel channel, Object message) throws RemotingException {
+        // 获取线程池
         ExecutorService executor = getPreferredExecutorService(message);
         try {
             executor.execute(new ChannelEventRunnable(channel, handler, ChannelState.RECEIVED, message));
@@ -68,6 +71,7 @@ public class AllChannelHandler extends WrappedChannelHandler {
             throw new ExecutionException(message, channel, getClass() + " error when process received event .", t);
         }
     }
+
 
     @Override
     public void caught(Channel channel, Throwable exception) throws RemotingException {

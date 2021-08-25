@@ -48,6 +48,7 @@ public class ConnectionOrderedChannelHandler extends WrappedChannelHandler {
     public ConnectionOrderedChannelHandler(ChannelHandler handler, URL url) {
         super(handler, url);
         String threadName = url.getParameter(THREAD_NAME_KEY, DEFAULT_THREAD_NAME);
+        // 创建一个只有一个线程的线程池，队列长度由URL中的connect.queue.capacity指定
         connectionExecutor = new ThreadPoolExecutor(1, 1,
                 0L, TimeUnit.MILLISECONDS,
                 new LinkedBlockingQueue<Runnable>(url.getPositiveParameter(CONNECT_QUEUE_CAPACITY, Integer.MAX_VALUE)),

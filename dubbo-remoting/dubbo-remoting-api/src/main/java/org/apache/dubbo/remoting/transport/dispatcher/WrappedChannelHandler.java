@@ -85,6 +85,34 @@ public class WrappedChannelHandler implements ChannelHandlerDelegate {
         }
     }
 
+    /**
+     * 如果请求在发送的时候指定了关联的线程池，在收到对应的响应消息的时候，会优先根据请求的 ID 查找请求关联的线程池处理响应
+     * 否则返回共有线程池
+     * @param msg
+     * @return
+     */
+    public ExecutorService getPreferredExecutorService(Object msg) {
+        // 如果收到的消息是响应
+        if (msg instanceof Response) {
+            Response response = (Response) msg;
+            DefaultFuture responseFuture = DefaultFuture.getFuture(response.getId());
+            // a typical scenario is the response returned after timeout, the timeout response may has completed the future
+            if (responseFuture == null) {
+                return getSharedExecutorService();
+                // 如果请求关联了线程池，获取相关的线程来处理响应
+            } else {
+                ExecutorService executor = responseFuture.getExecutor();
+                if (executor == null || executor.isShutdown()) {
+                    executor = getSharedExecutorService();
+                }
+                return executor;
+            }
+        } else {
+            // 如果时请求消息，使用公共的线程池处理
+            return getSharedExecutorService();
+        }
+    }
+
     @Override
     public ChannelHandler getHandler() {
         if (handler instanceof ChannelHandlerDelegate) {
@@ -96,33 +124,6 @@ public class WrappedChannelHandler implements ChannelHandlerDelegate {
 
     public URL getUrl() {
         return url;
-    }
-
-    /**
-     * Currently, this method is mainly customized to facilitate the thread model on consumer side.
-     * 1. Use ThreadlessExecutor, aka., delegate callback directly to the thread initiating the call.
-     * 2. Use shared executor to execute the callback.
-     *
-     * @param msg
-     * @return
-     */
-    public ExecutorService getPreferredExecutorService(Object msg) {
-        if (msg instanceof Response) {
-            Response response = (Response) msg;
-            DefaultFuture responseFuture = DefaultFuture.getFuture(response.getId());
-            // a typical scenario is the response returned after timeout, the timeout response may has completed the future
-            if (responseFuture == null) {
-                return getSharedExecutorService();
-            } else {
-                ExecutorService executor = responseFuture.getExecutor();
-                if (executor == null || executor.isShutdown()) {
-                    executor = getSharedExecutorService();
-                }
-                return executor;
-            }
-        } else {
-            return getSharedExecutorService();
-        }
     }
 
     /**
