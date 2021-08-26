@@ -51,6 +51,7 @@ public class TimeoutFilter implements Filter, Filter.Listener {
         Object obj = RpcContext.getContext().get(TIME_COUNTDOWN_KEY);
         if (obj != null) {
             TimeoutCountDown countDown = (TimeoutCountDown) obj;
+            // 判断是否过期
             if (countDown.isExpired()) {
                 ((AppResponse) appResponse).clear(); // clear response in case of timeout.
                 if (logger.isWarnEnabled()) {
