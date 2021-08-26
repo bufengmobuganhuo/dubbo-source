@@ -55,12 +55,15 @@ public class HeaderExchangeClient implements ExchangeClient {
 
     public HeaderExchangeClient(Client client, boolean startTimer) {
         Assert.notNull(client, "Client can't be null");
+        // Transport层的Client对象
         this.client = client;
         this.channel = new HeaderExchangeChannel(client);
 
         if (startTimer) {
             URL url = client.getUrl();
+            // 负责重连的Task
             startReconnectTask(url);
+            // 负责心跳的Task
             startHeartBeatTask(url);
         }
     }
@@ -187,11 +190,15 @@ public class HeaderExchangeClient implements ExchangeClient {
     }
 
     private void startHeartBeatTask(URL url) {
+        // Client的具体实现决定是否启动该心跳任务
         if (!client.canHandleIdle()) {
             AbstractTimerTask.ChannelProvider cp = () -> Collections.singletonList(HeaderExchangeClient.this);
+            // 计算心跳间隔，最小间隔不能低于1s
             int heartbeat = getHeartbeat(url);
             long heartbeatTick = calculateLeastDuration(heartbeat);
+            // 创建心跳任务
             this.heartBeatTimerTask = new HeartbeatTimerTask(cp, heartbeatTick, heartbeat);
+            // 提交到IDLE_CHECK_TIMER这个时间轮中等待执行
             IDLE_CHECK_TIMER.newTimeout(heartBeatTimerTask, heartbeatTick, TimeUnit.MILLISECONDS);
         }
     }

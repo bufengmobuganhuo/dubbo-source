@@ -28,14 +28,14 @@ import org.apache.dubbo.common.Node;
 public interface Invoker<T> extends Node {
 
     /**
-     * get service interface.
+     * 获取服务接口
      *
      * @return service interface.
      */
     Class<T> getInterface();
 
     /**
-     * invoke.
+     * 进行一次调用，也可称为一次"会话"
      *
      * @param invocation
      * @return result

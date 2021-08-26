@@ -76,10 +76,10 @@ public class DecodeableRpcResult extends AppResponse implements Codec, Decodeabl
             Thread thread = Thread.currentThread();
             log.debug("Decoding in thread -- [" + thread.getName() + "#" + thread.getId() + "]");
         }
-
+        // 确定当前使用的序列化方式，并对字节流进行解码
         ObjectInput in = CodecSupport.getSerialization(channel.getUrl(), serializationType)
                 .deserialize(channel.getUrl(), input);
-
+        // 标志位
         byte flag = in.readByte();
         switch (flag) {
             case DubboCodec.RESPONSE_NULL_VALUE:

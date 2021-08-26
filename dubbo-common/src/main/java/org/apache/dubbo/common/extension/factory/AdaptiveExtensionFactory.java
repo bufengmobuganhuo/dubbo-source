@@ -35,6 +35,7 @@ public class AdaptiveExtensionFactory implements ExtensionFactory {
     public AdaptiveExtensionFactory() {
         ExtensionLoader<ExtensionFactory> loader = ExtensionLoader.getExtensionLoader(ExtensionFactory.class);
         List<ExtensionFactory> list = new ArrayList<ExtensionFactory>();
+        // 支持两种： SpiExtensionFactory 和 SpringExtensionFactory
         for (String name : loader.getSupportedExtensions()) {
             list.add(loader.getExtension(name));
         }
@@ -43,6 +44,7 @@ public class AdaptiveExtensionFactory implements ExtensionFactory {
 
     @Override
     public <T> T getExtension(Class<T> type, String name) {
+        // 遍历，哪种工厂成功创建，就返回
         for (ExtensionFactory factory : factories) {
             T extension = factory.getExtension(type, name);
             if (extension != null) {

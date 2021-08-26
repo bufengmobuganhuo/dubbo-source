@@ -50,8 +50,11 @@ public class ActiveLimitFilter implements Filter, Filter.Listener {
     public Result invoke(Invoker<?> invoker, Invocation invocation) throws RpcException {
         URL url = invoker.getUrl();
         String methodName = invocation.getMethodName();
+        // 获取设置的最大并发数
         int max = invoker.getUrl().getMethodParameter(methodName, ACTIVES_KEY, 0);
+        // 获取被调用方法的状态信息
         final RpcStatus rpcStatus = RpcStatus.getStatus(invoker.getUrl(), invocation.getMethodName());
+        // 尝试并发度+1，如果尝试失败，说明可能超过了并发度限制
         if (!RpcStatus.beginCount(url, methodName, max)) {
             long timeout = invoker.getUrl().getMethodParameter(invocation.getMethodName(), TIMEOUT_KEY, 0);
             long start = System.currentTimeMillis();
@@ -59,12 +62,14 @@ public class ActiveLimitFilter implements Filter, Filter.Listener {
             synchronized (rpcStatus) {
                 while (!RpcStatus.beginCount(url, methodName, max)) {
                     try {
+                        // 当前线程阻塞并释放锁，等待并发度降低
                         rpcStatus.wait(remain);
                     } catch (InterruptedException e) {
                         // ignore
                     }
                     long elapsed = System.currentTimeMillis() - start;
                     remain = timeout - elapsed;
+                    // 说明已经超时，直接抛出异常
                     if (remain <= 0) {
                         throw new RpcException(RpcException.LIMIT_EXCEEDED_EXCEPTION,
                                 "Waiting concurrent invoke timeout in client-side for service:  " +
@@ -75,9 +80,9 @@ public class ActiveLimitFilter implements Filter, Filter.Listener {
                 }
             }
         }
-
+        // 添加一个attribute
         invocation.put(ACTIVELIMIT_FILTER_START_TIME, System.currentTimeMillis());
-
+        // +1成功，则表示可以调用
         return invoker.invoke(invocation);
     }
 
@@ -85,9 +90,11 @@ public class ActiveLimitFilter implements Filter, Filter.Listener {
     public void onResponse(Result appResponse, Invoker<?> invoker, Invocation invocation) {
         String methodName = invocation.getMethodName();
         URL url = invoker.getUrl();
+        // 获取并发度限制
         int max = invoker.getUrl().getMethodParameter(methodName, ACTIVES_KEY, 0);
-
+        // 完成调用监控的统计
         RpcStatus.endCount(url, methodName, getElapsed(invocation), true);
+        // 唤醒所有阻塞在对应RpcStatus 对象上的线程
         notifyFinish(RpcStatus.getStatus(url, methodName), max);
     }
 

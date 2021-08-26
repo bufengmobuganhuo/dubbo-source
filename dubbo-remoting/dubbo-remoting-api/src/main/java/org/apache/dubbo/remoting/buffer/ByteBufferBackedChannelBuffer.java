@@ -86,8 +86,10 @@ public class ByteBufferBackedChannelBuffer extends AbstractChannelBuffer {
 
     @Override
     public void getBytes(int index, byte[] dst, int dstIndex, int length) {
+        // 浅拷贝
         ByteBuffer data = buffer.duplicate();
         try {
+            // 设置limit和position
             data.limit(index + length).position(index);
         } catch (IllegalArgumentException e) {
             throw new IndexOutOfBoundsException();

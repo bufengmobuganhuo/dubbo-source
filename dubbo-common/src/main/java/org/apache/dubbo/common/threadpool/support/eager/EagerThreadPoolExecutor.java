@@ -51,28 +51,27 @@ public class EagerThreadPoolExecutor extends ThreadPoolExecutor {
     }
 
     @Override
-    protected void afterExecute(Runnable r, Throwable t) {
-        submittedTaskCount.decrementAndGet();
-    }
-
-    @Override
     public void execute(Runnable command) {
         if (command == null) {
             throw new NullPointerException();
         }
-        // do not increment in method beforeExecute!
+        // 用于记录当前在线程池中的任务总数（正在线程中执行的任务数+队列中等待的任务数）
         submittedTaskCount.incrementAndGet();
         try {
+            // 提交任务
             super.execute(command);
         } catch (RejectedExecutionException rx) {
-            // retry to offer the task into queue.
             final TaskQueue queue = (TaskQueue) super.getQueue();
             try {
+                // 任务被拒绝后，尝试再次放入队列中缓存，等待空闲线程执行
                 if (!queue.retryOffer(command, 0, TimeUnit.MILLISECONDS)) {
+                    // 再次入队被拒绝，则队列已满，无法执行任务
+                    // 递减submittedTaskCount
                     submittedTaskCount.decrementAndGet();
                     throw new RejectedExecutionException("Queue capacity is full.", rx);
                 }
             } catch (InterruptedException x) {
+                // 再次入队列异常，递减submittedTaskCount
                 submittedTaskCount.decrementAndGet();
                 throw new RejectedExecutionException(x);
             }
@@ -81,5 +80,11 @@ public class EagerThreadPoolExecutor extends ThreadPoolExecutor {
             submittedTaskCount.decrementAndGet();
             throw t;
         }
+    }
+
+    @Override
+    protected void afterExecute(Runnable r, Throwable t) {
+        // 任务结束，递减
+        submittedTaskCount.decrementAndGet();
     }
 }

@@ -81,11 +81,13 @@ public class ContextFilter implements Filter, Filter.Listener {
 
     @Override
     public Result invoke(Invoker<?> invoker, Invocation invocation) throws RpcException {
+        // 获取附加信息
         Map<String, Object> attachments = invocation.getObjectAttachments();
         if (attachments != null) {
             Map<String, Object> newAttach = new HashMap<>(attachments.size());
             for (Map.Entry<String, Object> entry : attachments.entrySet()) {
                 String key = entry.getKey();
+                // 过滤掉UNLOADING_KEYS集合中设置的key，可以节省空间
                 if (!UNLOADING_KEYS.contains(key)) {
                     newAttach.put(key, entry.getValue());
                 }
@@ -94,6 +96,7 @@ public class ContextFilter implements Filter, Filter.Listener {
         }
 
         RpcContext context = RpcContext.getContext();
+        // 初始化RpcContext
         context.setInvoker(invoker)
                 .setInvocation(invocation)
 //                .setAttachments(attachments)  // merged from dubbox
@@ -125,11 +128,14 @@ public class ContextFilter implements Filter, Filter.Listener {
         }
 
         try {
+            // 在调用过程中，需要保持当前RpcContext不被删除，这里将remove开关关掉，
+            // 这样removeContext()方法不会删除LOCAL线程的RpcContext
             context.clearAfterEachInvoke(false);
             return invoker.invoke(invocation);
         } finally {
+            // 调用完后，重置remove开关
             context.clearAfterEachInvoke(true);
-            // IMPORTANT! For async scenario, we must remove context from current thread, so we always create a new RpcContext for the next invoke for the same thread.
+            // 清理RpcContext，当前线程处理下一个调用的时候，会创建新的RpcContext
             RpcContext.removeContext(true);
             RpcContext.removeServerContext();
         }

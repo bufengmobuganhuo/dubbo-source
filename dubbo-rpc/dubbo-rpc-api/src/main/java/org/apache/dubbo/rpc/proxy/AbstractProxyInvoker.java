@@ -81,8 +81,11 @@ public abstract class AbstractProxyInvoker<T> implements Invoker<T> {
     @Override
     public Result invoke(Invocation invocation) throws RpcException {
         try {
+            // 调用业务实现
             Object value = doInvoke(proxy, invocation.getMethodName(), invocation.getParameterTypes(), invocation.getArguments());
+            // 封装成CompletableFuture对象
 			CompletableFuture<Object> future = wrapWithFuture(value);
+			// 封装成CompletableFuture<AppResponse>对象
             CompletableFuture<AppResponse> appResponseFuture = future.handle((obj, t) -> {
                 AppResponse result = new AppResponse();
                 if (t != null) {
@@ -96,6 +99,7 @@ public abstract class AbstractProxyInvoker<T> implements Invoker<T> {
                 }
                 return result;
             });
+            // 将CompletableFuture封装成AsyncRpcResult返回
             return new AsyncRpcResult(appResponseFuture, invocation);
         } catch (InvocationTargetException e) {
             if (RpcContext.getContext().isAsyncStarted() && !RpcContext.getContext().stopAsync()) {

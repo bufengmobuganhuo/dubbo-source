@@ -119,8 +119,11 @@ public abstract class AbstractZookeeperClient<TargetDataListener, TargetChildLis
 
     @Override
     public void addDataListener(String path, DataListener listener, Executor executor) {
+        // 获取指定path上的DataListener集合
         ConcurrentMap<DataListener, TargetDataListener> dataListenerMap = listeners.computeIfAbsent(path, k -> new ConcurrentHashMap<>());
+        // 查询该DataListener关联的TargetDataListener
         TargetDataListener targetListener = dataListenerMap.computeIfAbsent(listener, k -> createTargetDataListener(path, k));
+        // 通过TargetDataListener在指定的path上添加监听
         addTargetDataListener(path, targetListener, executor);
     }
 

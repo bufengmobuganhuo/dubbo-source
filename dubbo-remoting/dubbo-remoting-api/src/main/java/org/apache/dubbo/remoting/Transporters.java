@@ -65,6 +65,7 @@ public class Transporters {
             throw new IllegalArgumentException("url == null");
         }
         ChannelHandler handler;
+        // 初始化ChannelHandler链条
         if (handlers == null || handlers.length == 0) {
             handler = new ChannelHandlerAdapter();
         } else if (handlers.length == 1) {
@@ -74,7 +75,7 @@ public class Transporters {
         }
         return getTransporter().connect(url, handler);
     }
-
+    // 获取扩展实现
     public static Transporter getTransporter() {
         return ExtensionLoader.getExtensionLoader(Transporter.class).getAdaptiveExtension();
     }
