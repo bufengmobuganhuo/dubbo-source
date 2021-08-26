@@ -70,17 +70,21 @@ public class HeaderExchangeHandler implements ChannelHandlerDelegate {
     }
 
     void handlerEvent(Channel channel, Request req) throws RemotingException {
+        // 在 Channel 上设置 channel.readonly 标志
         if (req.getData() != null && req.getData().equals(READONLY_EVENT)) {
             channel.setAttribute(Constants.CHANNEL_ATTRIBUTE_READONLY_KEY, Boolean.TRUE);
         }
     }
 
     void handleRequest(final ExchangeChannel channel, Request req) throws RemotingException {
+        // 创建Response
         Response res = new Response(req.getId(), req.getVersion());
+        // 请求解码失败
         if (req.isBroken()) {
             Object data = req.getData();
 
             String msg;
+            // 设置异常信息和响应码
             if (data == null) {
                 msg = null;
             } else if (data instanceof Throwable) {
@@ -97,7 +101,9 @@ public class HeaderExchangeHandler implements ChannelHandlerDelegate {
         // find handler by message class.
         Object msg = req.getData();
         try {
+            // 交给上层实现的ExchangeHandler进行处理
             CompletionStage<Object> future = handler.reply(channel, msg);
+            // 处理结束后的回调
             future.whenComplete((appResult, t) -> {
                 try {
                     if (t == null) {

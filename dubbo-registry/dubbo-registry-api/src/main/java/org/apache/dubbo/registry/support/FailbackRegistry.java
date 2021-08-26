@@ -98,19 +98,6 @@ public abstract class FailbackRegistry extends AbstractRegistry {
         failedNotified.remove(h);
     }
 
-    private void addFailedRegistered(URL url) {
-        FailedRegisteredTask oldOne = failedRegistered.get(url);
-        if (oldOne != null) {
-            return;
-        }
-        FailedRegisteredTask newTask = new FailedRegisteredTask(url, this);
-        oldOne = failedRegistered.putIfAbsent(url, newTask);
-        if (oldOne == null) {
-            // never has a retry task. then start a new task for retry.
-            retryTimer.newTimeout(newTask, retryPeriod, TimeUnit.MILLISECONDS);
-        }
-    }
-
     private void removeFailedRegistered(URL url) {
         FailedRegisteredTask f = failedRegistered.remove(url);
         if (f != null) {
@@ -232,20 +219,25 @@ public abstract class FailbackRegistry extends AbstractRegistry {
             logger.info("URL " + url + " will not be registered to Registry. Registry " + url + " does not accept service of this protocol type.");
             return;
         }
+        // 调用父类：AbstractRegistry.java，将Provider URL写入registered集合中
         super.register(url);
+        // 先将重试任务从Map中移除
         removeFailedRegistered(url);
         removeFailedUnregistered(url);
         try {
-            // Sending a registration request to the server side
+            // 与服务发现组件交互，由子类实现，每个子类负责接入一种服务发现组件
             doRegister(url);
         } catch (Exception e) {
             Throwable t = e;
 
-            // If the startup detection is opened, the Exception is thrown directly.
+            // 创建这个Registry对象的URL（包含了这个对象的全部信息）的check参数为true（默认为true）
             boolean check = getUrl().getParameter(Constants.CHECK_KEY, true)
+                // 待注册URL的check参数=true
                     && url.getParameter(Constants.CHECK_KEY, true)
-                    && !CONSUMER_PROTOCOL.equals(url.getProtocol());
+                // 待注册URL不是Consumer协议
+                && !CONSUMER_PROTOCOL.equals(url.getProtocol());
             boolean skipFailback = t instanceof SkipFailbackWrapperException;
+            // 满足条件就直接抛异常
             if (check || skipFailback) {
                 if (skipFailback) {
                     t = t.getCause();
@@ -255,8 +247,22 @@ public abstract class FailbackRegistry extends AbstractRegistry {
                 logger.error("Failed to register " + url + ", waiting for retry, cause: " + t.getMessage(), t);
             }
 
-            // Record a failed registration request to a failed list, retry regularly
+            // 失败重试
             addFailedRegistered(url);
+        }
+    }
+
+    private void addFailedRegistered(URL url) {
+        FailedRegisteredTask oldOne = failedRegistered.get(url);
+        // 已经存在重试任务，直接返回
+        if (oldOne != null) {
+            return;
+        }
+        FailedRegisteredTask newTask = new FailedRegisteredTask(url, this);
+        oldOne = failedRegistered.putIfAbsent(url, newTask);
+        if (oldOne == null) {
+            // 如果是新建的重试任务，则提交到时间轮中，等待retryPeriod毫秒后执行
+            retryTimer.newTimeout(newTask, retryPeriod, TimeUnit.MILLISECONDS);
         }
     }
 
@@ -327,19 +333,21 @@ public abstract class FailbackRegistry extends AbstractRegistry {
     @Override
     public void subscribe(URL url, NotifyListener listener) {
         super.subscribe(url, listener);
+        // 清理FailedSubscribedTask、FailedUnsubscribedTask、FailedNotifiedTask三类定时任务
         removeFailedSubscribed(url, listener);
         try {
-            // Sending a subscription request to the server side
+            // 由具体的子类实现
             doSubscribe(url, listener);
         } catch (Exception e) {
             Throwable t = e;
 
             List<URL> urls = getCacheUrls(url);
             if (CollectionUtils.isNotEmpty(urls)) {
+                // 当订阅失败时，将当前url订阅的provider URL列表通过listener通知其监听者
                 notify(url, listener, urls);
                 logger.error("Failed to subscribe " + url + ", Using cached list: " + urls + " from cache file: " + getUrl().getParameter(FILE_KEY, System.getProperty("user.home") + "/dubbo-registry-" + url.getHost() + ".cache") + ", cause: " + t.getMessage(), t);
             } else {
-                // If the startup detection is opened, the Exception is thrown directly.
+                // 如果启动时检查（检查consumer能否订阅provider）开启，则直接抛异常，系统启动失败
                 boolean check = getUrl().getParameter(Constants.CHECK_KEY, true)
                         && url.getParameter(Constants.CHECK_KEY, true);
                 boolean skipFailback = t instanceof SkipFailbackWrapperException;
@@ -353,7 +361,7 @@ public abstract class FailbackRegistry extends AbstractRegistry {
                 }
             }
 
-            // Record a failed registration request to a failed list, retry regularly
+            // 创建失败重试的定时任务
             addFailedSubscribed(url, listener);
         }
     }
@@ -395,9 +403,10 @@ public abstract class FailbackRegistry extends AbstractRegistry {
             throw new IllegalArgumentException("notify listener == null");
         }
         try {
+            // 调用父类：AbstractRegistry.java的方法
             doNotify(url, listener, urls);
         } catch (Exception t) {
-            // Record a failed registration request to a failed list, retry regularly
+            // 如果发生异常则添加一个定时任务
             addFailedNotified(url, listener, urls);
             logger.error("Failed to notify for subscribe " + url + ", waiting for retry, cause: " + t.getMessage(), t);
         }

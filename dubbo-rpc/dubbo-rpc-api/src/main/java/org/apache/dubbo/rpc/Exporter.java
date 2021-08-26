@@ -25,20 +25,11 @@ package org.apache.dubbo.rpc;
  */
 public interface Exporter<T> {
 
-    /**
-     * get invoker.
-     *
-     * @return invoker
-     */
+    // 获取底层封装的Invoker对象
     Invoker<T> getInvoker();
 
-    /**
-     * unexport.
-     * <p>
-     * <code>
-     * getInvoker().destroy();
-     * </code>
-     */
+    // 取消发布底层的Invoker对象
     void unexport();
 
 }
+

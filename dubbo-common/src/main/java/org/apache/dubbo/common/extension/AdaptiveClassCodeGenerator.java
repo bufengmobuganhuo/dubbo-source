@@ -93,8 +93,11 @@ public class AdaptiveClassCodeGenerator {
         }
 
         StringBuilder code = new StringBuilder();
+        // 获取type的包名
         code.append(generatePackageInfo());
+        // import ExtensionLoader;
         code.append(generateImports());
+        // type的声明 class type.name
         code.append(generateClassDeclaration());
 
         Method[] methods = type.getMethods();
@@ -200,33 +203,46 @@ public class AdaptiveClassCodeGenerator {
     private String generateMethodContent(Method method) {
         Adaptive adaptiveAnnotation = method.getAnnotation(Adaptive.class);
         StringBuilder code = new StringBuilder(512);
+        // 如果没有被@Adaptive修饰，则方法里会抛出Unsupported异常
         if (adaptiveAnnotation == null) {
             return generateUnsupported(method);
         } else {
+            // 看方法中是否要传入URL这个对象
             int urlTypeIndex = getUrlTypeIndex(method);
 
-            // found parameter in URL type
+            // 如果在要生成的方法中直接传入URL对象
             if (urlTypeIndex != -1) {
-                // Null Point check
+                // 空指针校验(假设index = 1)
+                /*
+                 * public void method(URL url){
+                 *     if(url == null){
+                 *         throw new IllegalArgumentException("url == null"); URL.class.getName() url = arg1;
+                 *     }
+                 * }
+                 */
                 code.append(generateUrlNullCheck(urlTypeIndex));
             } else {
-                // did not find parameter in URL type
+                // 从要生成的方法中的参数中获取URL对象，如果没有则直接抛出异常, 类似下图这种
+                // public void method(A a){ this.url = a.getUrl();}
                 code.append(generateUrlAssignmentIndirectly(method));
             }
-
+            // 获取@Adaptive中配置的具体实现
             String[] value = getMethodAdaptiveValue(adaptiveAnnotation);
 
+            // method里是否有org.apache.dubbo.rpc.Invocation类型的入参
             boolean hasInvocation = hasInvocationArgument(method);
 
+            // 对于每个Invocation的入参，做判空
             code.append(generateInvocationArgumentNullCheck(method));
-
+            // 实现了@Adaptive注解的功能
             code.append(generateExtNameAssignment(value, hasInvocation));
             // check extName == null?
             code.append(generateExtNameNullCheck(value));
-
+            // 为这个扩展实现赋值
+            // type.getName() extension = ExtensionLoader.class.getSimpleName().getExtensionLoader(type.getName().class).getExtension(extName);
             code.append(generateExtensionAssignment());
-
-            // return statement
+            // 调用具体实现
+            // return extension.method.getName(args);\n"
             code.append(generateReturnAndInvocation(method));
         }
 

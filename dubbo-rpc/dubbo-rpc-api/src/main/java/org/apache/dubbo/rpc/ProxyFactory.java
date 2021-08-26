@@ -28,34 +28,15 @@ import static org.apache.dubbo.rpc.Constants.PROXY_KEY;
 @SPI("javassist")
 public interface ProxyFactory {
 
-    /**
-     * create proxy.
-     *
-     * @param invoker
-     * @return proxy
-     */
+    // 为传入的Invoker对象创建代理对象
     @Adaptive({PROXY_KEY})
     <T> T getProxy(Invoker<T> invoker) throws RpcException;
-
-    /**
-     * create proxy.
-     *
-     * @param invoker
-     * @return proxy
-     */
     @Adaptive({PROXY_KEY})
     <T> T getProxy(Invoker<T> invoker, boolean generic) throws RpcException;
 
-    /**
-     * create invoker.
-     *
-     * @param <T>
-     * @param proxy
-     * @param type
-     * @param url
-     * @return invoker
-     */
+    // 将传入的代理对象封装成Invoker对象，可以暂时理解为getProxy()的逆操作
     @Adaptive({PROXY_KEY})
     <T> Invoker<T> getInvoker(T proxy, Class<T> type, URL url) throws RpcException;
 
 }
+

@@ -79,13 +79,17 @@ public abstract class AbstractTimerTask implements TimerTask {
 
     @Override
     public void run(Timeout timeout) throws Exception {
+        // 从ChannelProvider中获取任务要操作的Channel集合
         Collection<Channel> c = channelProvider.getChannels();
         for (Channel channel : c) {
+            // 检测Channel状态
             if (channel.isClosed()) {
                 continue;
             }
+            // 执行任务
             doTask(channel);
         }
+        // 将当前任务重新加入时间轮中，等待执行
         reput(timeout, tick);
     }
 

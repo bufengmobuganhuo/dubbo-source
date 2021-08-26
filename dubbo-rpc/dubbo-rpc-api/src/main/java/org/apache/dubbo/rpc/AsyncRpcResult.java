@@ -49,16 +49,16 @@ import static org.apache.dubbo.common.utils.ReflectUtils.defaultReturn;
 public class AsyncRpcResult implements Result {
     private static final Logger logger = LoggerFactory.getLogger(AsyncRpcResult.class);
 
-    /**
-     * RpcContext may already have been changed when callback happens, it happens when the same thread is used to execute another RPC call.
-     * So we should keep the reference of current RpcContext instance and restore it before callback being executed.
-     */
+    // 用于存储相关的 RpcContext 对象。
+    // 由于 RpcContext 是与线程绑定的，而真正执行 AsyncRpcResult 上添加的回调方法的线程可能先后处理过多个不同的 AsyncRpcResult，
+    // 所以需要传递并保存当前的 RpcContext
     private RpcContext storedContext;
     private RpcContext storedServerContext;
+    // 此次RPC调用关联的线程池
     private Executor executor;
-
+    // 此次RPC调用关联的Invocation对象
     private Invocation invocation;
-
+    // 是DefaultFuture回调链上的一个Future，后面AsyncRpcResult之上添加的回调，实际上都是添加到这个上
     private CompletableFuture<AppResponse> responseFuture;
 
     public AsyncRpcResult(CompletableFuture<AppResponse> future, Invocation invocation) {
@@ -192,13 +192,35 @@ public class AsyncRpcResult implements Result {
     }
 
     public Result whenCompleteWithContext(BiConsumer<Result, Throwable> fn) {
+        // 在responseFuture之上注册回调
         this.responseFuture = this.responseFuture.whenComplete((v, t) -> {
+            // 将当前线程的RpcContext记录到tmpContext，
+            // 然后将构造函数中存储的RpcContext设置到当前线程中，为后面的回调执行作准备
             beforeContext.accept(v, t);
             fn.accept(v, t);
+            // 恢复线程原有的RpcContext
             afterContext.accept(v, t);
         });
         return this;
     }
+
+    /**
+     * tmp context to use when the thread switch to Dubbo thread.
+     */
+    private RpcContext tmpContext;
+
+    private RpcContext tmpServerContext;
+    private BiConsumer<Result, Throwable> beforeContext = (appResponse, t) -> {
+        tmpContext = RpcContext.getContext();
+        tmpServerContext = RpcContext.getServerContext();
+        RpcContext.restoreContext(storedContext);
+        RpcContext.restoreServerContext(storedServerContext);
+    };
+
+    private BiConsumer<Result, Throwable> afterContext = (appResponse, t) -> {
+        RpcContext.restoreContext(tmpContext);
+        RpcContext.restoreServerContext(tmpServerContext);
+    };
 
     @Override
     public <U> CompletableFuture<U> thenApply(Function<Result, ? extends U> fn) {
@@ -279,24 +301,6 @@ public class AsyncRpcResult implements Result {
     public void setExecutor(Executor executor) {
         this.executor = executor;
     }
-
-    /**
-     * tmp context to use when the thread switch to Dubbo thread.
-     */
-    private RpcContext tmpContext;
-
-    private RpcContext tmpServerContext;
-    private BiConsumer<Result, Throwable> beforeContext = (appResponse, t) -> {
-        tmpContext = RpcContext.getContext();
-        tmpServerContext = RpcContext.getServerContext();
-        RpcContext.restoreContext(storedContext);
-        RpcContext.restoreServerContext(storedServerContext);
-    };
-
-    private BiConsumer<Result, Throwable> afterContext = (appResponse, t) -> {
-        RpcContext.restoreContext(tmpContext);
-        RpcContext.restoreServerContext(tmpServerContext);
-    };
 
     /**
      * Some utility methods used to quickly generate default AsyncRpcResult instance.

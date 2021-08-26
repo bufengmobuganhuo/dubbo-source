@@ -46,59 +46,28 @@ import java.util.function.Function;
  */
 public interface Result extends Serializable {
 
-    /**
-     * Get invoke result.
-     *
-     * @return result. if no result return null.
-     */
+    // 获取/设置此次调用的返回值
     Object getValue();
-
     void setValue(Object value);
 
-    /**
-     * Get exception.
-     *
-     * @return exception. if no exception return null.
-     */
+    // 如果此次调用发生异常，则可以通过下面三个方法获取
     Throwable getException();
-
     void setException(Throwable t);
-
-    /**
-     * Has exception.
-     *
-     * @return has exception.
-     */
     boolean hasException();
 
-    /**
-     * Recreate.
-     * <p>
-     * <code>
-     * if (hasException()) {
-     * throw getException();
-     * } else {
-     * return getValue();
-     * }
-     * </code>
-     *
-     * @return result.
-     * @throws if has exception throw it.
-     */
+    // recreate()方法是一个复合操作，如果此次调用发生异常，则直接抛出异常，
+    // 如果没有异常，则返回结果
     Object recreate() throws Throwable;
 
-    /**
-     * get attachments.
-     *
-     * @return attachments.
-     */
-    Map<String, String> getAttachments();
+    // 添加一个回调，当RPC调用完成时，会触发这里添加的回调
+    Result whenCompleteWithContext(BiConsumer<Result, Throwable> fn);
 
-    /**
-     * get attachments.
-     *
-     * @return attachments.
-     */
+    // 阻塞线程，等待此次RPC调用完成(或是超时)
+    Result get() throws InterruptedException, ExecutionException;
+    Result get(long timeout, TimeUnit unit) throws InterruptedException, ExecutionException, TimeoutException;
+
+    // Result中同样可以携带附加信息
+    Map<String, String> getAttachments();
     @Experimental("Experiment api for supporting Object transmission")
     Map<String, Object> getObjectAttachments();
 
@@ -170,20 +139,5 @@ public interface Result extends Serializable {
     @Experimental("Experiment api for supporting Object transmission")
     void setObjectAttachment(String key, Object value);
 
-    /**
-     * Add a callback which can be triggered when the RPC call finishes.
-     * <p>
-     * Just as the method name implies, this method will guarantee the callback being triggered under the same context as when the call was started,
-     * see implementation in {@link Result#whenCompleteWithContext(BiConsumer)}
-     *
-     * @param fn
-     * @return
-     */
-    Result whenCompleteWithContext(BiConsumer<Result, Throwable> fn);
-
     <U> CompletableFuture<U> thenApply(Function<Result, ? extends U> fn);
-
-    Result get() throws InterruptedException, ExecutionException;
-
-    Result get(long timeout, TimeUnit unit) throws InterruptedException, ExecutionException, TimeoutException;
 }

@@ -64,18 +64,26 @@ public class CuratorZookeeperClient extends AbstractZookeeperClient<CuratorZooke
             int timeout = url.getParameter(TIMEOUT_KEY, DEFAULT_CONNECTION_TIMEOUT_MS);
             int sessionExpireMs = url.getParameter(ZK_SESSION_EXPIRE_KEY, DEFAULT_SESSION_TIMEOUT_MS);
             CuratorFrameworkFactory.Builder builder = CuratorFrameworkFactory.builder()
+                // zk地址，包括备用地址
                     .connectString(url.getBackupAddress())
+                // 重试配置
                     .retryPolicy(new RetryNTimes(1, 1000))
+                // 连接超时时长
                     .connectionTimeoutMs(timeout)
+                // session过期时间
                     .sessionTimeoutMs(sessionExpireMs);
+            // 身份验证
             String authority = url.getAuthority();
             if (authority != null && authority.length() > 0) {
                 builder = builder.authorization("digest", authority.getBytes());
             }
             client = builder.build();
+            // 添加连接状态监听器
             client.getConnectionStateListenable().addListener(new CuratorConnectionStateListener(url));
             client.start();
+            // 阻塞连接
             boolean connected = client.blockUntilConnected(timeout, TimeUnit.MILLISECONDS);
+            // 如果连接失败，抛异常
             if (!connected) {
                 throw new IllegalStateException("zookeeper not connected");
             }

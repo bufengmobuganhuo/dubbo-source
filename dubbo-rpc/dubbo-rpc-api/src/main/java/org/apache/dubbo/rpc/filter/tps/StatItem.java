@@ -44,14 +44,17 @@ class StatItem {
 
     public boolean isAllowable() {
         long now = System.currentTimeMillis();
+        // 周期性重置token
         if (now > lastResetTime + interval) {
             token = buildLongAdder(rate);
+            // 记录最近一次重置token的时间戳
             lastResetTime = now;
         }
-
+        // 请求限流
         if (token.sum() < 0) {
             return false;
         }
+        // 请求正常通过
         token.decrement();
         return true;
     }

@@ -30,62 +30,44 @@ import java.util.stream.Stream;
  */
 public interface Invocation {
 
+    // 调用Service的唯一标识
     String getTargetServiceUniqueName();
 
-    /**
-     * get method name.
-     *
-     * @return method name.
-     * @serial
-     */
+    // 调用的方法名称
     String getMethodName();
 
-
-    /**
-     * get the interface name
-     * @return
-     */
+    // 调用的服务名称
     String getServiceName();
 
-    /**
-     * get parameter types.
-     *
-     * @return parameter types.
-     * @serial
-     */
+    // 参数类型集合
     Class<?>[] getParameterTypes();
 
-    /**
-     * get parameter's signature, string representation of parameter types.
-     *
-     * @return parameter's signature
-     */
+    // 参数签名集合
     default String[] getCompatibleParamSignatures() {
         return Stream.of(getParameterTypes())
                 .map(Class::getName)
                 .toArray(String[]::new);
     }
 
-    /**
-     * get arguments.
-     *
-     * @return arguments.
-     * @serial
-     */
+    // 此次调用具体的参数值
     Object[] getArguments();
 
-    /**
-     * get attachments.
-     *
-     * @return attachments.
-     * @serial
-     */
-    Map<String, String> getAttachments();
+    // 此次调用关联的Invoker对象
+    Invoker<?> getInvoker();
 
-    @Experimental("Experiment api for supporting Object transmission")
+    // Invoker对象可以设置一些KV属性，这些属性并不会传递给Provider
+    Object get(Object key);
+    Object put(Object key, Object value);
+    Map<Object, Object> getAttributes();
+
+    // Invocation可以携带一个KV信息作为附加信息，一并传递给Provider，
+    // 注意与 attribute 的区分
+    Map<String, String> getAttachments();
     Map<String, Object> getObjectAttachments();
 
     void setAttachment(String key, String value);
+
+    String getAttachment(String key);
 
     @Experimental("Experiment api for supporting Object transmission")
     void setAttachment(String key, Object value);
@@ -101,14 +83,6 @@ public interface Invocation {
     @Experimental("Experiment api for supporting Object transmission")
     void setObjectAttachmentIfAbsent(String key, Object value);
 
-    /**
-     * get attachment by key.
-     *
-     * @return attachment value.
-     * @serial
-     */
-    String getAttachment(String key);
-
     @Experimental("Experiment api for supporting Object transmission")
     Object getObjectAttachment(String key);
 
@@ -122,18 +96,4 @@ public interface Invocation {
 
     @Experimental("Experiment api for supporting Object transmission")
     Object getObjectAttachment(String key, Object defaultValue);
-
-    /**
-     * get the invoker in current context.
-     *
-     * @return invoker.
-     * @transient
-     */
-    Invoker<?> getInvoker();
-
-    Object put(Object key, Object value);
-
-    Object get(Object key);
-
-    Map<Object, Object> getAttributes();
 }

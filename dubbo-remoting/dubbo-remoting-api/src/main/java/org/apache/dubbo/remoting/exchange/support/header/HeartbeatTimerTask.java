@@ -42,8 +42,10 @@ public class HeartbeatTimerTask extends AbstractTimerTask {
     @Override
     protected void doTask(Channel channel) {
         try {
+            // 获取最后一次读写时间（从Channel中的附加属性中获取）
             Long lastRead = lastRead(channel);
             Long lastWrite = lastWrite(channel);
+            // 最后一次读写时间超过心跳时间，就会发送心跳请求
             if ((lastRead != null && now() - lastRead > heartbeat)
                     || (lastWrite != null && now() - lastWrite > heartbeat)) {
                 Request req = new Request();

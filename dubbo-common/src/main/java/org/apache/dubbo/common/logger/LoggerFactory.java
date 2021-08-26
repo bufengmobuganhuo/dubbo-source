@@ -79,8 +79,19 @@ public class LoggerFactory {
     private LoggerFactory() {
     }
 
+    /**
+     * Get logger provider
+     *
+     * @param key the returned logger will be named after key
+     * @return logger provider
+     */
+    public static Logger getLogger(String key) {
+        return LOGGERS.computeIfAbsent(key, k -> new FailsafeLogger(LOGGER_ADAPTER.getLogger(k)));
+    }
+
     public static void setLoggerAdapter(String loggerAdapter) {
         if (loggerAdapter != null && loggerAdapter.length() > 0) {
+            // 使用SPI的方式
             setLoggerAdapter(ExtensionLoader.getExtensionLoader(LoggerAdapter.class).getExtension(loggerAdapter));
         }
     }
@@ -109,16 +120,6 @@ public class LoggerFactory {
      */
     public static Logger getLogger(Class<?> key) {
         return LOGGERS.computeIfAbsent(key.getName(), name -> new FailsafeLogger(LOGGER_ADAPTER.getLogger(name)));
-    }
-
-    /**
-     * Get logger provider
-     *
-     * @param key the returned logger will be named after key
-     * @return logger provider
-     */
-    public static Logger getLogger(String key) {
-        return LOGGERS.computeIfAbsent(key, k -> new FailsafeLogger(LOGGER_ADAPTER.getLogger(k)));
     }
 
     /**
