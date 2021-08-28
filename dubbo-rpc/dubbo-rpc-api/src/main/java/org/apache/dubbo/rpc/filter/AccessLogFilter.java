@@ -103,6 +103,7 @@ public class AccessLogFilter implements Filter {
         try {
             String accessLogKey = invoker.getUrl().getParameter(ACCESS_LOG_KEY);
             if (ConfigUtils.isNotEmpty(accessLogKey)) {
+                // 构造AccessLogData对象，其中记录了日志信息，例如，调用的服务名称、方法名称、version等
                 AccessLogData logData = buildAccessLogData(invoker, inv);
                 log(accessLogKey, logData);
             }
@@ -112,15 +113,17 @@ public class AccessLogFilter implements Filter {
         return invoker.invoke(inv);
     }
 
-    private void log(String accessLog, AccessLogData accessLogData) {
-        Set<AccessLogData> logSet = LOG_ENTRIES.computeIfAbsent(accessLog, k -> new ConcurrentHashSet<>());
-
+    private void log(String accessLogKey, AccessLogData accessLogData) {
+        // 根据accessLogKey获取对应的缓存集合
+        Set<AccessLogData> logSet = LOG_ENTRIES.computeIfAbsent(accessLogKey, k -> new ConcurrentHashSet<>());
+        // 缓存大小未超过阈值
         if (logSet.size() < LOG_MAX_BUFFER) {
             logSet.add(accessLogData);
+            // 缓存大小超过阈值，触发缓存数据写入文件
         } else {
             logger.warn("AccessLog buffer is full. Do a force writing to file to clear buffer.");
             //just write current logSet to file.
-            writeLogSetToFile(accessLog, logSet);
+            writeLogSetToFile(accessLogKey, logSet);
             //after force writing, add accessLogData to current logSet
             logSet.add(accessLogData);
         }
@@ -128,19 +131,34 @@ public class AccessLogFilter implements Filter {
 
     private void writeLogSetToFile(String accessLog, Set<AccessLogData> logSet) {
         try {
+            //  ACCESS_LOG_KEY配置值为true或是default
             if (ConfigUtils.isDefault(accessLog)) {
+                // 使用Dubbo默认提供的统一日志框架
                 processWithServiceLogger(logSet);
             } else {
                 File file = new File(accessLog);
+                // 创建目录
                 createIfLogDirAbsent(file);
                 if (logger.isDebugEnabled()) {
                     logger.debug("Append log to " + accessLog);
                 }
+                // 创建日志文件，这里会以日期为后缀，滚动创建
                 renameFile(file);
+                // 遍历logSet集合，使用IO流将日志逐条写入文件
                 processWithAccessKeyLogger(logSet, file);
             }
         } catch (Exception e) {
             logger.error(e.getMessage(), e);
+        }
+    }
+
+    private void processWithServiceLogger(Set<AccessLogData> logSet) {
+        for (Iterator<AccessLogData> iterator = logSet.iterator();
+             iterator.hasNext();
+             iterator.remove()) {
+            AccessLogData logData = iterator.next();
+            // 使用LoggerFactory获取logger记录日志
+            LoggerFactory.getLogger(LOG_KEY + "." + logData.getServiceName()).info(logData.getLogMessage());
         }
     }
 
@@ -176,15 +194,6 @@ public class AccessLogFilter implements Filter {
         logData.setTypes(inv.getParameterTypes());
         logData.setArguments(inv.getArguments());
         return logData;
-    }
-
-    private void processWithServiceLogger(Set<AccessLogData> logSet) {
-        for (Iterator<AccessLogData> iterator = logSet.iterator();
-             iterator.hasNext();
-             iterator.remove()) {
-            AccessLogData logData = iterator.next();
-            LoggerFactory.getLogger(LOG_KEY + "." + logData.getServiceName()).info(logData.getLogMessage());
-        }
     }
 
     private void createIfLogDirAbsent(File file) {

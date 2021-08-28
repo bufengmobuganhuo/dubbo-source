@@ -208,6 +208,7 @@ public class ExchangeCodec extends TelnetCodec {
     }
 
     protected void encodeRequest(Channel channel, ChannelBuffer buffer, Request req) throws IOException {
+        // 根据url中SERIALIZATION_KEY的配置获取到扩展实现类，默认是hessian2
         Serialization serialization = getSerialization(channel);
         // header.
         byte[] header = new byte[HEADER_LENGTH];

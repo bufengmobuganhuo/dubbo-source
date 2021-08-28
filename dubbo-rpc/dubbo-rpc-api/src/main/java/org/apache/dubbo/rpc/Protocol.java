@@ -29,62 +29,30 @@ import java.util.List;
 @SPI("dubbo")
 public interface Protocol {
 
-    /**
-     * Get default port when user doesn't config the port.
-     *
-     * @return default port
-     */
+    // 获取默认端口
     int getDefaultPort();
 
-    /**
-     * Export service for remote invocation: <br>
-     * 1. Protocol should record request source address after receive a request:
-     * RpcContext.getContext().setRemoteAddress();<br>
-     * 2. export() must be idempotent, that is, there's no difference between invoking once and invoking twice when
-     * export the same URL<br>
-     * 3. Invoker instance is passed in by the framework, protocol needs not to care <br>
-     *
-     * @param <T>     Service type
-     * @param invoker Service invoker
-     * @return exporter reference for exported service, useful for unexport the service later
-     * @throws RpcException thrown when error occurs during export the service, for example: port is occupied
-     */
+    // 将一个Invoker暴露出去，export()方法实现需要是幂等的，
+    // 即同一个服务暴露多次和暴露一次的效果是相同的
+    // 这里并不是简单的将Invoker包装成Exporter返回，而是涉及到代理对象的创建、底层Server的启动等操作
     @Adaptive
     <T> Exporter<T> export(Invoker<T> invoker) throws RpcException;
 
-    /**
-     * Refer a remote service: <br>
-     * 1. When user calls `invoke()` method of `Invoker` object which's returned from `refer()` call, the protocol
-     * needs to correspondingly execute `invoke()` method of `Invoker` object <br>
-     * 2. It's protocol's responsibility to implement `Invoker` which's returned from `refer()`. Generally speaking,
-     * protocol sends remote request in the `Invoker` implementation. <br>
-     * 3. When there's check=false set in URL, the implementation must not throw exception but try to recover when
-     * connection fails.
-     *
-     * @param <T>  Service type
-     * @param type Service class
-     * @param url  URL address for the remote service
-     * @return invoker service's local proxy
-     * @throws RpcException when there's any error while connecting to the service provider
-     */
+    // 引用一个Invoker，refer()方法会根据参数返回一个Invoker对象，
+    // Consumer端可以通过这个Invoker请求到Provider端的服务
+    // 除了根据传入的type以及URL参数查询Invoker外，还涉及相关Client的创建工作
     @Adaptive
     <T> Invoker<T> refer(Class<T> type, URL url) throws RpcException;
 
-    /**
-     * Destroy protocol: <br>
-     * 1. Cancel all services this protocol exports and refers <br>
-     * 2. Release all occupied resources, for example: connection, port, etc. <br>
-     * 3. Protocol can continue to export and refer new service even after it's destroyed.
-     */
+    // 销毁export()方法以及refer()方法使用到的Invoker对象，释放
+    // 当前Protocol对象底层占用的资源
     void destroy();
 
-    /**
-     * Get all servers serving this protocol
-     *
-     * @return
-     */
+    // 返回当前Protocol底层的全部ProtocolServer
     default List<ProtocolServer> getServers() {
         return Collections.emptyList();
     }
 
 }
+
+

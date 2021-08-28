@@ -49,12 +49,14 @@ public abstract class AbstractCompiler implements Compiler {
         }
         String className = pkg != null && pkg.length() > 0 ? pkg + "." + cls : cls;
         try {
+            // 从code中提取出要生成类的全路径名，并加载
             return Class.forName(className, true, org.apache.dubbo.common.utils.ClassUtils.getCallerClassLoader(getClass()));
         } catch (ClassNotFoundException e) {
             if (!code.endsWith("}")) {
                 throw new IllegalStateException("The java code not endsWith \"}\", code: \n" + code + "\n");
             }
             try {
+                // 如果使用反射加载失败，则使用默认实现Javassit加载
                 return doCompile(className, code);
             } catch (RuntimeException t) {
                 throw t;

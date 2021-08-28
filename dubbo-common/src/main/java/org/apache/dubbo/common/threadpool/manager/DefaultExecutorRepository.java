@@ -71,20 +71,28 @@ public class DefaultExecutorRepository implements ExecutorRepository {
      * @return
      */
     public synchronized ExecutorService createExecutorIfAbsent(URL url) {
+        // 根据URL中的参数决定第一层的Key
         String componentKey = EXECUTOR_SERVICE_COMPONENT_KEY;
         if (CONSUMER_SIDE.equalsIgnoreCase(url.getParameter(SIDE_KEY))) {
             componentKey = CONSUMER_SIDE;
         }
         Map<Integer, ExecutorService> executors = data.computeIfAbsent(componentKey, k -> new ConcurrentHashMap<>());
+        // 根据URL的port确定第二层Key
         Integer portKey = url.getPort();
         ExecutorService executor = executors.computeIfAbsent(portKey, k -> createExecutor(url));
-        // If executor has been shut down, create a new one
+        // 如果缓存中相应的线程池已关闭，则同样需要调用createExecutor()方法
+        // 创建新的线程池，并替换掉缓存中已关闭的线程池
         if (executor.isShutdown() || executor.isTerminated()) {
             executors.remove(portKey);
             executor = createExecutor(url);
             executors.put(portKey, executor);
         }
         return executor;
+    }
+
+    private ExecutorService createExecutor(URL url) {
+        // 通过Dubbo SPI查找ThreadPool的扩展实现，并调用其getExecutor()创建线程池
+        return (ExecutorService) ExtensionLoader.getExtensionLoader(ThreadPool.class).getAdaptiveExtension().getExecutor(url);
     }
 
     public ExecutorService getExecutor(URL url) {
@@ -157,10 +165,6 @@ public class DefaultExecutorRepository implements ExecutorRepository {
     @Override
     public ExecutorService getSharedExecutor() {
         return SHARED_EXECUTOR;
-    }
-
-    private ExecutorService createExecutor(URL url) {
-        return (ExecutorService) ExtensionLoader.getExtensionLoader(ThreadPool.class).getAdaptiveExtension().getExecutor(url);
     }
 
 }

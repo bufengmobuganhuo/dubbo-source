@@ -38,22 +38,25 @@ public class DefaultTPSLimiter implements TPSLimiter {
 
     @Override
     public boolean isAllowable(URL url, Invocation invocation) {
+        // 获取TPS限流配置
         int rate = url.getParameter(TPS_LIMIT_RATE_KEY, -1);
         long interval = url.getParameter(TPS_LIMIT_INTERVAL_KEY, DEFAULT_TPS_LIMIT_INTERVAL);
         String serviceKey = url.getServiceKey();
+        // 如果需要限流，尝试从stats集合中获取对应的StatItem对象
         if (rate > 0) {
             StatItem statItem = stats.get(serviceKey);
             if (statItem == null) {
                 stats.putIfAbsent(serviceKey, new StatItem(serviceKey, rate, interval));
                 statItem = stats.get(serviceKey);
             } else {
-                //rate or interval has changed, rebuild
+                // 如果URL中的参数发生变化时，重建StatItem
                 if (statItem.getRate() != rate || statItem.getInterval() != interval) {
                     stats.put(serviceKey, new StatItem(serviceKey, rate, interval));
                     statItem = stats.get(serviceKey);
                 }
             }
             return statItem.isAllowable();
+            // 不需要限流，则从stats集合中清除相应的StatItem对象
         } else {
             StatItem statItem = stats.get(serviceKey);
             if (statItem != null) {

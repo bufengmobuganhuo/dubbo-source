@@ -96,20 +96,26 @@ public class RpcStatus {
      */
     public static boolean beginCount(URL url, String methodName, int max) {
         max = (max <= 0) ? Integer.MAX_VALUE : max;
+        // 获取服务对应的RpcStatus对象
         RpcStatus appStatus = getStatus(url);
+        // 获取服务方法对应的RpcStatus对象
         RpcStatus methodStatus = getStatus(url, methodName);
+        // 并发度溢出
         if (methodStatus.active.get() == Integer.MAX_VALUE) {
             return false;
         }
         for (int i; ; ) {
             i = methodStatus.active.get();
+            // 并发度超过上限
             if (i + 1 > max) {
                 return false;
             }
+            // CAS操作
             if (methodStatus.active.compareAndSet(i, i + 1)) {
                 break;
             }
         }
+        // 服务对应的并发度也应该➕1
         appStatus.active.incrementAndGet();
         return true;
     }
@@ -125,16 +131,22 @@ public class RpcStatus {
     }
 
     private static void endCount(RpcStatus status, long elapsed, boolean succeeded) {
+        // 请求完成，并发度-1
         status.active.decrementAndGet();
+        // 调用总次数增加
         status.total.incrementAndGet();
+        // 调用总耗时增加
         status.totalElapsed.addAndGet(elapsed);
+        // 更新最大耗时
         if (status.maxElapsed.get() < elapsed) {
             status.maxElapsed.set(elapsed);
         }
+        // 如果此次调用成功，则会更新成功调用的最大耗时
         if (succeeded) {
             if (status.succeededMaxElapsed.get() < elapsed) {
                 status.succeededMaxElapsed.set(elapsed);
             }
+            // 否则更新失败相关的
         } else {
             status.failed.incrementAndGet();
             status.failedElapsed.addAndGet(elapsed);

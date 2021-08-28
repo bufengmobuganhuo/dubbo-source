@@ -181,15 +181,16 @@ public abstract class AbstractInvoker<T> implements Invoker<T> {
         return asyncResult;
     }
 
+    protected abstract Result doInvoke(Invocation invocation) throws Throwable;
+
+
     protected ExecutorService getCallbackExecutor(URL url, Invocation inv) {
         ExecutorService sharedExecutor = ExtensionLoader.getExtensionLoader(ExecutorRepository.class).getDefaultExtension().getExecutor(url);
+        // 如果是同步的，返回ThreadlessExecutor
         if (InvokeMode.SYNC == RpcUtils.getInvokeMode(getUrl(), inv)) {
             return new ThreadlessExecutor(sharedExecutor);
         } else {
             return sharedExecutor;
         }
     }
-
-    protected abstract Result doInvoke(Invocation invocation) throws Throwable;
-
 }

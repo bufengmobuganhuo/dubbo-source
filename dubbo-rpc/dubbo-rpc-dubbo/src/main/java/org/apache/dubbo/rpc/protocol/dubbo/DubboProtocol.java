@@ -16,6 +16,43 @@
  */
 package org.apache.dubbo.rpc.protocol.dubbo;
 
+import static org.apache.dubbo.common.constants.CommonConstants.GROUP_KEY;
+import static org.apache.dubbo.common.constants.CommonConstants.INTERFACE_KEY;
+import static org.apache.dubbo.common.constants.CommonConstants.LAZY_CONNECT_KEY;
+import static org.apache.dubbo.common.constants.CommonConstants.PATH_KEY;
+import static org.apache.dubbo.common.constants.CommonConstants.STUB_EVENT_KEY;
+import static org.apache.dubbo.common.constants.CommonConstants.VERSION_KEY;
+import static org.apache.dubbo.remoting.Constants.CHANNEL_READONLYEVENT_SENT_KEY;
+import static org.apache.dubbo.remoting.Constants.CLIENT_KEY;
+import static org.apache.dubbo.remoting.Constants.CODEC_KEY;
+import static org.apache.dubbo.remoting.Constants.CONNECTIONS_KEY;
+import static org.apache.dubbo.remoting.Constants.DEFAULT_HEARTBEAT;
+import static org.apache.dubbo.remoting.Constants.DEFAULT_REMOTING_CLIENT;
+import static org.apache.dubbo.remoting.Constants.HEARTBEAT_KEY;
+import static org.apache.dubbo.remoting.Constants.SERVER_KEY;
+import static org.apache.dubbo.rpc.Constants.DEFAULT_REMOTING_SERVER;
+import static org.apache.dubbo.rpc.Constants.DEFAULT_STUB_EVENT;
+import static org.apache.dubbo.rpc.Constants.IS_SERVER_KEY;
+import static org.apache.dubbo.rpc.Constants.STUB_EVENT_METHODS_KEY;
+import static org.apache.dubbo.rpc.protocol.dubbo.Constants.CALLBACK_SERVICE_KEY;
+import static org.apache.dubbo.rpc.protocol.dubbo.Constants.DEFAULT_SHARE_CONNECTIONS;
+import static org.apache.dubbo.rpc.protocol.dubbo.Constants.IS_CALLBACK_SERVICE;
+import static org.apache.dubbo.rpc.protocol.dubbo.Constants.ON_CONNECT_KEY;
+import static org.apache.dubbo.rpc.protocol.dubbo.Constants.ON_DISCONNECT_KEY;
+import static org.apache.dubbo.rpc.protocol.dubbo.Constants.OPTIMIZER_KEY;
+import static org.apache.dubbo.rpc.protocol.dubbo.Constants.SHARE_CONNECTIONS_KEY;
+
+import java.net.InetSocketAddress;
+import java.util.ArrayList;
+import java.util.Collection;
+import java.util.Collections;
+import java.util.List;
+import java.util.Map;
+import java.util.Set;
+import java.util.concurrent.CompletableFuture;
+import java.util.concurrent.ConcurrentHashMap;
+import java.util.concurrent.ConcurrentMap;
+import java.util.function.Function;
 import org.apache.dubbo.common.URL;
 import org.apache.dubbo.common.URLBuilder;
 import org.apache.dubbo.common.config.ConfigurationUtils;
@@ -44,44 +81,6 @@ import org.apache.dubbo.rpc.RpcContext;
 import org.apache.dubbo.rpc.RpcException;
 import org.apache.dubbo.rpc.RpcInvocation;
 import org.apache.dubbo.rpc.protocol.AbstractProtocol;
-
-import java.net.InetSocketAddress;
-import java.util.ArrayList;
-import java.util.Collection;
-import java.util.Collections;
-import java.util.List;
-import java.util.Map;
-import java.util.Set;
-import java.util.concurrent.CompletableFuture;
-import java.util.concurrent.ConcurrentHashMap;
-import java.util.concurrent.ConcurrentMap;
-import java.util.function.Function;
-
-import static org.apache.dubbo.common.constants.CommonConstants.GROUP_KEY;
-import static org.apache.dubbo.common.constants.CommonConstants.INTERFACE_KEY;
-import static org.apache.dubbo.common.constants.CommonConstants.LAZY_CONNECT_KEY;
-import static org.apache.dubbo.common.constants.CommonConstants.PATH_KEY;
-import static org.apache.dubbo.common.constants.CommonConstants.STUB_EVENT_KEY;
-import static org.apache.dubbo.common.constants.CommonConstants.VERSION_KEY;
-import static org.apache.dubbo.remoting.Constants.CHANNEL_READONLYEVENT_SENT_KEY;
-import static org.apache.dubbo.remoting.Constants.CLIENT_KEY;
-import static org.apache.dubbo.remoting.Constants.CODEC_KEY;
-import static org.apache.dubbo.remoting.Constants.CONNECTIONS_KEY;
-import static org.apache.dubbo.remoting.Constants.DEFAULT_HEARTBEAT;
-import static org.apache.dubbo.remoting.Constants.DEFAULT_REMOTING_CLIENT;
-import static org.apache.dubbo.remoting.Constants.HEARTBEAT_KEY;
-import static org.apache.dubbo.remoting.Constants.SERVER_KEY;
-import static org.apache.dubbo.rpc.Constants.DEFAULT_REMOTING_SERVER;
-import static org.apache.dubbo.rpc.Constants.DEFAULT_STUB_EVENT;
-import static org.apache.dubbo.rpc.Constants.IS_SERVER_KEY;
-import static org.apache.dubbo.rpc.Constants.STUB_EVENT_METHODS_KEY;
-import static org.apache.dubbo.rpc.protocol.dubbo.Constants.CALLBACK_SERVICE_KEY;
-import static org.apache.dubbo.rpc.protocol.dubbo.Constants.DEFAULT_SHARE_CONNECTIONS;
-import static org.apache.dubbo.rpc.protocol.dubbo.Constants.IS_CALLBACK_SERVICE;
-import static org.apache.dubbo.rpc.protocol.dubbo.Constants.ON_CONNECT_KEY;
-import static org.apache.dubbo.rpc.protocol.dubbo.Constants.ON_DISCONNECT_KEY;
-import static org.apache.dubbo.rpc.protocol.dubbo.Constants.OPTIMIZER_KEY;
-import static org.apache.dubbo.rpc.protocol.dubbo.Constants.SHARE_CONNECTIONS_KEY;
 
 
 /**
@@ -278,8 +277,9 @@ public class DubboProtocol extends AbstractProtocol {
     public <T> Exporter<T> export(Invoker<T> invoker) throws RpcException {
         URL url = invoker.getUrl();
 
-        // export service.
+        // 创建serviceKey，形如：com.mengyu.DemoService:1.0(版本号):20880
         String key = serviceKey(url);
+        // 将上层传入的Invoker对象封装成DubboExporter对象，然后记录到exporterMap集合中
         DubboExporter<T> exporter = new DubboExporter<T>(invoker, key, exporterMap);
         exporterMap.put(key, exporter);
 
@@ -297,28 +297,31 @@ public class DubboProtocol extends AbstractProtocol {
             }
         }
 
+        // 启动ProtocolServer
         openServer(url);
+        // 进行序列化的优化处理
         optimizeSerialization(url);
 
         return exporter;
     }
 
     private void openServer(URL url) {
-        // find server.
+        // 获取host:port地址
         String key = url.getAddress();
-        //client can export a service which's only for server to invoke
         boolean isServer = url.getParameter(IS_SERVER_KEY, true);
+        // 只有server端才能启动Server对象
         if (isServer) {
             ProtocolServer server = serverMap.get(key);
             if (server == null) {
                 synchronized (this) {
                     server = serverMap.get(key);
                     if (server == null) {
+                        // 创建ProtocolServer对象
                         serverMap.put(key, createServer(url));
                     }
                 }
             } else {
-                // server supports reset, use together with override
+                // 如果已有ProtocolServer实例，则尝试根据URL信息重置ProtocolServer
                 server.reset(url);
             }
         }
@@ -326,12 +329,16 @@ public class DubboProtocol extends AbstractProtocol {
 
     private ProtocolServer createServer(URL url) {
         url = URLBuilder.from(url)
-                // send readonly event when server closes, it's enabled by default
-                .addParameterIfAbsent(CHANNEL_READONLYEVENT_SENT_KEY, Boolean.TRUE.toString())
-                // enable heartbeat by default
+            // 默认true，表示ReadOnly请求需要阻塞等待响应返回
+            // 在 Server 关闭的时候，只能发送 ReadOnly 请求，
+            // 这些 ReadOnly 请求由这里设置的 CHANNEL_READONLYEVENT_SENT_KEY 参数值决定是否需要等待响应返回
+            .addParameterIfAbsent(CHANNEL_READONLYEVENT_SENT_KEY, Boolean.TRUE.toString())
+            // 设置默认的心跳时间间隔为60秒
                 .addParameterIfAbsent(HEARTBEAT_KEY, String.valueOf(DEFAULT_HEARTBEAT))
+            // 编解码，默认为DubboCodec
                 .addParameter(CODEC_KEY, DubboCodec.NAME)
                 .build();
+        // 检测SERVER_KEY参数指定的Transporter扩展实现是否合法
         String str = url.getParameter(SERVER_KEY, DEFAULT_REMOTING_SERVER);
 
         if (str != null && str.length() > 0 && !ExtensionLoader.getExtensionLoader(Transporter.class).hasExtension(str)) {
@@ -340,11 +347,13 @@ public class DubboProtocol extends AbstractProtocol {
 
         ExchangeServer server;
         try {
+            // 通过Exchangers面门类，创建ExchangeServer对象
             server = Exchangers.bind(url, requestHandler);
         } catch (RemotingException e) {
             throw new RpcException("Fail to start server(url: " + url + ") " + e.getMessage(), e);
         }
 
+        // 检测 CLIENT_KEY 参数指定Transporter的扩展实现名称是否合法
         str = url.getParameter(CLIENT_KEY);
         if (str != null && str.length() > 0) {
             Set<String> supportedTypes = ExtensionLoader.getExtensionLoader(Transporter.class).getSupportedExtensions();
@@ -353,10 +362,12 @@ public class DubboProtocol extends AbstractProtocol {
             }
         }
 
+        // 将ExchangeServer封装成DubboProtocolServer返回
         return new DubboProtocolServer(server);
     }
 
     private void optimizeSerialization(URL url) throws RpcException {
+        // 根据URL中的optimizer参数值，确定SerializationOptimizer接口的实现类
         String className = url.getParameter(OPTIMIZER_KEY, "");
         if (StringUtils.isEmpty(className) || optimizers.contains(className)) {
             return;
@@ -370,13 +381,17 @@ public class DubboProtocol extends AbstractProtocol {
                 throw new RpcException("The serialization optimizer " + className + " isn't an instance of " + SerializationOptimizer.class.getName());
             }
 
+            // 创建SerializationOptimizer实现类的对象
             SerializationOptimizer optimizer = (SerializationOptimizer) clazz.newInstance();
 
             if (optimizer.getSerializableClasses() == null) {
                 return;
             }
-
+            // 调用getSerializableClasses()方法获取需要注册的类
             for (Class c : optimizer.getSerializableClasses()) {
+                // SerializableClassRegistry 底层维护了一个 static 的 Map（REGISTRATIONS 字段），
+                // registerClass() 方法就是将待优化的类写入该集合中暂存，
+                // 在使用 Kryo、FST 等序列化算法时，会读取该集合中的类，完成注册操作
                 SerializableClassRegistry.registerClass(c);
             }
 
