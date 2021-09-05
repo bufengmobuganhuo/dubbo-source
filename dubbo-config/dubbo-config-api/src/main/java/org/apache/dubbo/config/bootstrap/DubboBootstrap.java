@@ -739,37 +739,45 @@ public class DubboBootstrap extends GenericEventListener {
      * Start the bootstrap
      */
     public DubboBootstrap start() {
+        // CAS操作，保证只启动一次
         if (started.compareAndSet(false, true)) {
+            // 用来判断当前节点是否已经启动完毕
             ready.set(false);
+            // 初始化一些基础组件，如配置中心相关组件，事件监听，元数据相关组件
             initialize();
             if (logger.isInfoEnabled()) {
                 logger.info(NAME + " is starting...");
             }
-            // 1. export Dubbo Services
+            // 1. 发布服务
             exportServices();
 
             // Not only provider register
             if (!isOnlyRegisterProvider() || hasExportedServices()) {
-                // 2. export MetadataService
+                // 2. 暴露本地元数据服务
                 exportMetadataService();
-                //3. Register the local ServiceInstance if required
+                //3. 用于将服务实例注册到注册中心
                 registerServiceInstance();
             }
-
+            // 4. 处理consumer和ReferenceConfig
             referServices();
+            // 5. List<Future<?>> asyncExportingFutures 存储了需要异步发布的任务
             if (asyncExportingFutures.size() > 0) {
+                // 异步发布服务，会启动一个线程监听发布是否完成，完成之后会将ready设置为true
                 new Thread(() -> {
                     try {
+                        // 调用CompletableFuture.allOf()，等待所有Future都结束后，该方法返回
                         this.awaitFinish();
                     } catch (Exception e) {
                         logger.warn(NAME + " exportAsync occurred an exception.");
                     }
+                    // 设置标识位，表示启动完成
                     ready.set(true);
                     if (logger.isInfoEnabled()) {
                         logger.info(NAME + " is ready.");
                     }
                 }).start();
             } else {
+                // 同步等待服务发布成功后
                 ready.set(true);
                 if (logger.isInfoEnabled()) {
                     logger.info(NAME + " is ready.");
@@ -927,18 +935,22 @@ public class DubboBootstrap extends GenericEventListener {
     }
 
     private void exportServices() {
+        // 从配置管理器中获取到所有要暴露的服务配置，一个服务对应一个ServiceConfigBase实例
         configManager.getServices().forEach(sc -> {
             // TODO, compatible with ServiceConfig.export()
             ServiceConfig serviceConfig = (ServiceConfig) sc;
             serviceConfig.setBootstrap(this);
-
+            // 如果是异步暴露
             if (exportAsync) {
+                // 获取线程池
                 ExecutorService executor = executorRepository.getServiceExporterExecutor();
                 Future<?> future = executor.submit(() -> {
                     sc.export();
                     exportedServices.add(sc);
                 });
+                // 记录异步发布的Future
                 asyncExportingFutures.add(future);
+                // 同步发布
             } else {
                 sc.export();
                 exportedServices.add(sc);
@@ -962,16 +974,18 @@ public class DubboBootstrap extends GenericEventListener {
     }
 
     private void referServices() {
+        // 初始化ReferenceConfigCache
         if (cache == null) {
             cache = ReferenceConfigCache.getCache();
         }
-
+        // 遍历ReferenceConfig列表
         configManager.getReferences().forEach(rc -> {
             // TODO, compatible with  ReferenceConfig.refer()
             ReferenceConfig referenceConfig = (ReferenceConfig) rc;
             referenceConfig.setBootstrap(this);
-
+            // 检测ReferenceConfig是否已经初始化
             if (rc.shouldInit()) {
+                // 如果是异步发布
                 if (referAsync) {
                     CompletableFuture<Object> future = ScheduledCompletableFuture.submit(
                             executorRepository.getServiceExporterExecutor(),

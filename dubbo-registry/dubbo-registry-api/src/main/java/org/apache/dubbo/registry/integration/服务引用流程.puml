@@ -1,0 +1,63 @@
+@startuml
+'https://plantuml.com/sequence-diagram
+
+autonumber
+
+DubboBootstrap.referServices -> ReferenceConfigCache.getCache: 初始化ReferenceConfigCache
+activate DubboBootstrap.referServices
+activate ReferenceConfigCache.getCache
+ReferenceConfigCache.getCache -> ReferenceConfigCache.getCache: 向CACHE_HOLDER插入一个entry\n（DEFAULT ->ReferenceConfigCache对象）
+note left
+    CACHE_HOLDER缓存了
+    （group/interface:version -> ReferenceConfigCache对象的映射）
+end note
+ReferenceConfigCache.getCache --> DubboBootstrap.referServices: ReferenceConfigCache对象
+deactivate ReferenceConfigCache.getCache
+alt 如果是异步引用
+    DubboBootstrap.referServices -> DubboBootstrap.referServices: ，\n则放入CompleteableFuture执行
+else
+    DubboBootstrap.referServices -> ReferenceConfigCache.get: 创建服务代理对象
+    activate ReferenceConfigCache.get
+    ReferenceConfigCache.get -> ReferenceConfigCache.get: 生成服务提供方对应的key\n(group/interface:version)
+    ReferenceConfigCache.get -> ReferenceConfig.get: 创建服务的代理对象
+    ReferenceConfig.get -> ReferenceConfig.init: 如果代理对象不存在，则初始化
+    activate ReferenceConfig.init
+    ReferenceConfig.init -> ReferenceConfig.init: 对配置做检查\n将配置拼接到Map中
+    ReferenceConfig.init -> ReferenceConfig.createProxy: 创建代理对象
+    activate ReferenceConfig.createProxy
+    alt 如果是InJvm协议
+        ReferenceConfig.createProxy -> ReferenceConfig.createProxy: 通过InJvmProtocol引用服务
+    else
+        alt 如果是直连服务
+                ReferenceConfig.createProxy -> ReferenceConfig.createProxy: 通过 url 参数指定一个\n或者多个 Provider 地址，\n会被解析并填充到 urls 集合
+                alt 如果有多个Provider
+                    ReferenceConfig.createProxy -> Cluster.join: 使用对应的实现\n如FailbackCluster创建Invoker，\n创建出来的就是FailbackClusterInvoker
+                else 只有一个Provider
+                    ReferenceConfig.createProxy -> DubboProtocol.refer: 创建Invoker对象
+                end
+        else 需要连接注册中心
+            ReferenceConfig.createProxy -> AbstractInterfaceConfig.loadRegistries: 加载所有注册中心
+            loop 遍历需要引用的每个URL
+                 ReferenceConfig.createProxy -> RegistryProtocol.refer: 创建Invoker对象
+                 activate RegistryProtocol.refer
+                 RegistryProtocol.refer -> RegistryProtocol.doRefer: 引用服务
+                 RegistryProtocol.doRefer -> RegistryProtocol.doRefer: 创建服务目录实例(RegistryDirectory)
+                 RegistryProtocol.doRefer -> Registry.registry: 向注册中心注册Consumer
+                 RegistryProtocol.doRefer -> RegistryDirectory.buildRouterChain: 创建路由链
+                 RegistryProtocol.doRefer -> RegistryDirectory.subscribe: 订阅服务，\n添加对providers, configurators, providers的监听
+                 RegistryProtocol.doRefer --> RegistryProtocol.refer: 返回invoker对象
+                 RegistryProtocol.refer --> ReferenceConfig.createProxy: 返回invoker对象
+                 deactivate RegistryProtocol.refer
+            end
+            opt 如果是多注册中心
+                ReferenceConfig.createProxy -> Cluster.join: 使用ZoneAwareCluster封装成一个invoker
+            end
+        end
+        ReferenceConfig.createProxy --> ReferenceConfig.init: 返回创建的invoker对象
+        deactivate ReferenceConfig.createProxy
+    end
+    deactivate ReferenceConfig.init
+    deactivate ReferenceConfigCache.get
+    deactivate DubboBootstrap.referServices
+end
+@enduml

@@ -96,13 +96,17 @@ public class FailbackClusterInvoker<T> extends AbstractClusterInvoker<T> {
     protected Result doInvoke(Invocation invocation, List<Invoker<T>> invokers, LoadBalance loadbalance) throws RpcException {
         Invoker<T> invoker = null;
         try {
+            // 校验invokers是否为空
             checkInvokers(invokers, invocation);
+            // 负载均衡选取一个invoker
             invoker = select(loadbalance, invocation, invokers, null);
             return invoker.invoke(invocation);
         } catch (Throwable e) {
             logger.error("Failback to invoke method " + invocation.getMethodName() + ", wait for retry in background. Ignored exception: "
                     + e.getMessage() + ", ", e);
+            // 请求失败之后，会添加一个定时任务进行重试
             addFailed(loadbalance, invocation, invokers, invoker);
+            // 返回空对象
             return AsyncRpcResult.newDefaultAsyncResult(null, null, invocation); // ignore
         }
     }

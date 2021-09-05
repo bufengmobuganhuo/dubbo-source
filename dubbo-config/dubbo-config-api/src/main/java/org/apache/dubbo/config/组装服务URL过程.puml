@@ -1,0 +1,15 @@
+@startuml
+'https://plantuml.com/sequence-diagram
+
+autonumber
+
+activate ServiceConfig.doExportUrlsFor1Protocol
+
+ServiceConfig.doExportUrlsFor1Protocol -> ServiceConfig.doExportUrlsFor1Protocol: 获取此次发布使用的协议，默认使用 dubbo 协议
+ServiceConfig.doExportUrlsFor1Protocol -> ServiceConfig.doExportUrlsFor1Protocol: 设置服务 URL 中的参数，这里会从 MetricsConfig、ApplicationConfig(<dubbo:application> 标签)、\nModuleConfig(<dubbo:module>标签)、ProviderConfig(<dubbo:provider标签>)、\nProtocolConfig 中获取配置信息，并作为参数添加到 URL 中。
+ServiceConfig.doExportUrlsFor1Protocol -> ServiceConfig.doExportUrlsFor1Protocol: 解析指定方法的 MethodConfig 配置以及方法参数的 ArgumentConfig 配置，得到的配置信息也是记录到 Map 集合中，后续作为 URL 参数
+ServiceConfig.doExportUrlsFor1Protocol -> ServiceConfig.doExportUrlsFor1Protocol: 根据此次调用是泛化调用还是普通调用，向 Map 集合中添加不同的键值对
+ServiceConfig.doExportUrlsFor1Protocol -> ServiceConfig.doExportUrlsFor1Protocol: 获取 token 配置，并添加到 Map 集合中，默认随机生成 UUID
+ServiceConfig.doExportUrlsFor1Protocol -> ServiceConfig.doExportUrlsFor1Protocol: 获取 host、port 值，并开始组装服务的 URL
+ServiceConfig.doExportUrlsFor1Protocol -> ServiceConfig.doExportUrlsFor1Protocol: 根据 Configurator 覆盖或新增 URL 参数
+@enduml

@@ -45,6 +45,7 @@ public class ReferenceConfigCache {
      * key example: <code>group1/org.apache.dubbo.foo.FooService:1.0.0</code>.
      */
     public static final KeyGenerator DEFAULT_KEY_GENERATOR = referenceConfig -> {
+        // 获取服务接口的名称
         String iName = referenceConfig.getInterface();
         if (StringUtils.isBlank(iName)) {
             Class<?> clazz = referenceConfig.getInterfaceClass();
@@ -53,7 +54,7 @@ public class ReferenceConfigCache {
         if (StringUtils.isBlank(iName)) {
             throw new IllegalArgumentException("No interface info in ReferenceConfig" + referenceConfig);
         }
-
+        // key的格式是：group/interface:version
         StringBuilder ret = new StringBuilder();
         if (!StringUtils.isBlank(referenceConfig.getGroup())) {
             ret.append(referenceConfig.getGroup()).append("/");
@@ -99,19 +100,24 @@ public class ReferenceConfigCache {
      * Create cache if not existed yet.
      */
     public static ReferenceConfigCache getCache(String name, KeyGenerator keyGenerator) {
+        // 层层调用的结果是：向CACHE_HOLDER插入一个entry（DEFAULT -> ReferenceConfigCache对象）
         return CACHE_HOLDER.computeIfAbsent(name, k -> new ReferenceConfigCache(k, keyGenerator));
     }
 
     @SuppressWarnings("unchecked")
     public <T> T get(ReferenceConfigBase<T> referenceConfig) {
+        // 生成服务提供方对应的key
         String key = generator.generateKey(referenceConfig);
+        // 获取接口类型
         Class<?> type = referenceConfig.getInterfaceClass();
-
+        // 获取服务姐扩对应的代理对象集合
         proxies.computeIfAbsent(type, _t -> new ConcurrentHashMap<>());
-
         ConcurrentMap<String, Object> proxiesOfType = proxies.get(type);
+
         proxiesOfType.computeIfAbsent(key, _k -> {
+            // 服务引用，这里生成了服务的代理对象
             Object proxy = referenceConfig.get();
+            // 将代理对象缓存起来
             referredReferences.put(key, referenceConfig);
             return proxy;
         });

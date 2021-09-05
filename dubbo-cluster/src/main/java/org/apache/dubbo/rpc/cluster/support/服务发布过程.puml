@@ -1,0 +1,21 @@
+@startuml
+'https://plantuml.com/sequence-diagram
+
+autonumber
+
+activate DubboBootstrap
+
+DubboBootstrap -> DubboBootstrap : 初始化基础组件，如配置中心相关组件，\n事件监听，元数据相关组件
+
+DubboBootstrap -> DubboBootstrap : 发布服务
+
+DubboBootstrap -> DubboBootstrap : 暴露本地元数据服务
+
+DubboBootstrap -> DubboBootstrap : 将服务实例注册到注册中心
+
+DubboBootstrap -> DubboBootstrap : 处理consumer和ReferenceCofig
+
+DubboBootstrap -> DubboBootstrap : 异步/同步等待启动完成
+
+
+@enduml

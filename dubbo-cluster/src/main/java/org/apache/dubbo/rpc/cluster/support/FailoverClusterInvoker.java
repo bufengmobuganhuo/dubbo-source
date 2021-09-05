@@ -56,29 +56,35 @@ public class FailoverClusterInvoker<T> extends AbstractClusterInvoker<T> {
     @SuppressWarnings({"unchecked", "rawtypes"})
     public Result doInvoke(Invocation invocation, final List<Invoker<T>> invokers, LoadBalance loadbalance) throws RpcException {
         List<Invoker<T>> copyInvokers = invokers;
+        // 检查copyInvokers是否为空，如果为空，则抛出异常
         checkInvokers(copyInvokers, invocation);
         String methodName = RpcUtils.getMethodName(invocation);
+        // 重试次数，默认2次
         int len = getUrl().getMethodParameter(methodName, RETRIES_KEY, DEFAULT_RETRIES) + 1;
         if (len <= 0) {
             len = 1;
         }
-        // retry loop.
         RpcException le = null; // last exception.
+        // 记录已经尝试过的invoker对象
         List<Invoker<T>> invoked = new ArrayList<Invoker<T>>(copyInvokers.size()); // invoked invokers.
         Set<String> providers = new HashSet<String>(len);
         for (int i = 0; i < len; i++) {
-            //Reselect before retry to avoid a change of candidate `invokers`.
-            //NOTE: if `invokers` changed, then `invoked` also lose accuracy.
+            // 第一次传进来的invokers已经check过了，
+            // 第二次则是重试逻辑，需要重新获取最新的服务列表
             if (i > 0) {
+                // 查看当前invoker是否被销毁
                 checkWhetherDestroyed();
+                // 路由筛选，获取invoker列表
                 copyInvokers = list(invocation);
-                // check again
+                // 检查copyInvokers是否为空，如果为空，则抛出异常
                 checkInvokers(copyInvokers, invocation);
             }
+            // 负载均衡选取一个invoker
             Invoker<T> invoker = select(loadbalance, invocation, copyInvokers, invoked);
             invoked.add(invoker);
             RpcContext.getContext().setInvokers((List) invoked);
             try {
+                // 发起远程调用
                 Result result = invoker.invoke(invocation);
                 if (le != null && logger.isWarnEnabled()) {
                     logger.warn("Although retry the method " + methodName

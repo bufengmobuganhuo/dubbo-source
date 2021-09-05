@@ -192,43 +192,43 @@ public class RegistryProtocol implements Protocol {
 
     @Override
     public <T> Exporter<T> export(final Invoker<T> originInvoker) throws RpcException {
+        // 将registry协议转化为<dubbo:registry>配置的协议，以zookeeper为例
         URL registryUrl = getRegistryUrl(originInvoker);
-        // url to export locally
+        // provider的URL，这里获取<dubbo:service protocol>配置的协议，这里以dubbo为例
         URL providerUrl = getProviderUrl(originInvoker);
 
-        // Subscribe the override data
-        // FIXME When the provider subscribes, it will affect the scene : a certain JVM exposes the service and call
-        //  the same service. Because the subscribed is cached key with the name of the service, it causes the
-        //  subscription information to cover.
+        // 获取要监听的配置目录，这里会在ProviderURL的基础上添加category=configurators参数，并封装成对OverrideListener记录到overrideListeners集合中
         final URL overrideSubscribeUrl = getSubscribedOverrideUrl(providerUrl);
         final OverrideListener overrideSubscribeListener = new OverrideListener(overrideSubscribeUrl, originInvoker);
         overrideListeners.put(overrideSubscribeUrl, overrideSubscribeListener);
-
+        // 初始化时会检测一次Override配置，重写ProviderURL
         providerUrl = overrideUrlWithConfig(providerUrl, overrideSubscribeListener);
-        //export invoker
+        // 导出服务，底层会通过执行DubboProtocol.export()方法，启动对应的Server
         final ExporterChangeableWrapper<T> exporter = doLocalExport(originInvoker, providerUrl);
 
-        // url to registry
+        // 根据RegistryURL获取对应的注册中心Registry对象，其中会依赖之前课时介绍的RegistryFactory
         final Registry registry = getRegistry(originInvoker);
+        // 获取将要发布到注册中心上的Provider URL，其中会删除一些多余的参数信息
         final URL registeredProviderUrl = getUrlToRegistry(providerUrl, registryUrl);
 
-        // decide if we need to delay publish
+        // 根据register参数值决定是否注册服务
         boolean register = providerUrl.getParameter(REGISTER_KEY, true);
         if (register) {
+             // 调用Registry.register()方法将registeredProviderUrl发布到注册中心
             register(registryUrl, registeredProviderUrl);
         }
 
-        // register stated url on provider model
+        // 将Provider相关信息记录到的ProviderModel中
         registerStatedUrl(registryUrl, registeredProviderUrl, register);
 
-        // Deprecated! Subscribe to override rules in 2.6.x or before.
+        // 向注册中心进行订阅override数据，主要是监听该服务的configurators节点
         registry.subscribe(overrideSubscribeUrl, overrideSubscribeListener);
 
         exporter.setRegisterUrl(registeredProviderUrl);
         exporter.setSubscribeUrl(overrideSubscribeUrl);
 
         notifyExport(exporter);
-        //Ensure that a new exporter instance is returned every time export
+        // 触发RegistryProtocolListener监听器
         return new DestroyableExporter<>(exporter);
     }
 
@@ -438,17 +438,21 @@ public class RegistryProtocol implements Protocol {
     @Override
     @SuppressWarnings("unchecked")
     public <T> Invoker<T> refer(Class<T> type, URL url) throws RpcException {
+        // 从URL中获取注册中心的URL
         url = getRegistryUrl(url);
+        // 获取Registry实例，这里的RegistryFactory对象是通过Dubbo SPI的自动装载机制注入的
         Registry registry = registryFactory.getRegistry(url);
         if (RegistryService.class.equals(type)) {
             return proxyFactory.getInvoker((T) registry, type, url);
         }
 
-        // group="a,b" or group="*"
+        // 从注册中心URL的refer参数中获取此次服务引用的一些参数，其中就包括group
         Map<String, String> qs = StringUtils.parseQueryString(url.getParameterAndDecoded(REFER_KEY));
         String group = qs.get(GROUP_KEY);
         if (group != null && group.length() > 0) {
             if ((COMMA_SPLIT_PATTERN.split(group)).length > 1 || "*".equals(group)) {
+                // 如果此次可以引用多个group的服务，则Cluser实现使用MergeableCluster实现，
+                // 这里的getMergeableCluster()方法就会通过Dubbo SPI方式找到MergeableCluster实例
                 return doRefer(getMergeableCluster(), registry, type, url);
             }
         }
@@ -460,25 +464,36 @@ public class RegistryProtocol implements Protocol {
     }
 
     private <T> Invoker<T> doRefer(Cluster cluster, Registry registry, Class<T> type, URL url) {
+        // 创建RegistryDirectory实例
         RegistryDirectory<T> directory = new RegistryDirectory<T>(type, url);
         directory.setRegistry(registry);
         directory.setProtocol(protocol);
         // all attributes of REFER_KEY
         Map<String, String> parameters = new HashMap<String, String>(directory.getConsumerUrl().getParameters());
+        // 生成SubscribeUrl，协议为consumer，具体的参数是RegistryURL中refer参数指定的参数
         URL subscribeUrl = new URL(CONSUMER_PROTOCOL, parameters.remove(REGISTER_IP_KEY), 0, type.getName(), parameters);
         if (directory.isShouldRegister()) {
+            // 在SubscribeUrl中添加category=consumers和check=false参数
             directory.setRegisteredConsumerUrl(subscribeUrl);
+            // 服务注册，在Zookeeper的consumers节点下，添加该Consumer对应的节点
             registry.register(directory.getRegisteredConsumerUrl());
         }
+        // 根据SubscribeUrl创建服务路由
         directory.buildRouterChain(subscribeUrl);
+        // 订阅服务，toSubscribeUrl()方法会将SubscribeUrl中category参数修改为"providers,configurators,routers"
+        // RegistryDirectory的subscribe()在前面详细分析过了，其中会通过Registry订阅服务，同时还会添加相应的监听器
         directory.subscribe(toSubscribeUrl(subscribeUrl));
 
+        // 注册中心中可能包含多个Provider，相应地，也就有多个Invoker，
+        // 这里通过前面选择的Cluster将多个Invoker对象封装成一个Invoker对象
         Invoker<T> invoker = cluster.join(directory);
+        // 根据URL中的registry.protocol.listener参数加载相应的监听器实现
         List<RegistryProtocolListener> listeners = findRegistryProtocolListeners(url);
         if (CollectionUtils.isEmpty(listeners)) {
             return invoker;
         }
-
+        // 为了方便在监听器中回调，这里将此次引用使用到的Directory对象、Cluster对象、Invoker对象以及SubscribeUrl
+        // 封装到一个RegistryInvokerWrapper中，传递给监听器
         RegistryInvokerWrapper<T> registryInvokerWrapper = new RegistryInvokerWrapper<>(directory, cluster, invoker, subscribeUrl);
         for (RegistryProtocolListener listener : listeners) {
             listener.onRefer(this, registryInvokerWrapper);

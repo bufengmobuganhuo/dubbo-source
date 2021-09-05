@@ -1,0 +1,77 @@
+@startuml
+'https://plantuml.com/sequence-diagram
+
+autonumber
+
+' ExecutorRepository.getServiceExporterExecutor -> ep.getExecutor '
+' ServiceConfig -> sc '
+' RegistryProcotol -> rp'
+
+activate DubboBootstrap.exportService
+loop 从配置管理器中获取到所有要暴露的服务配置，\n一个服务对应一个ServiceConfigBase实例，遍历每个服务
+    alt 如果是异步发布
+        DubboBootstrap.exportService -> ep.getExecutor: 获取线程池
+        activate ep.getExecutor
+        ep.getExecutor --> DubboBootstrap.exportService: 线程池
+        note right
+             ExecutorRepository.getServiceExporterExecutor -> ep.getExecutor
+             ServiceConfig -> sc
+             RegistryProcotol -> rp
+        end note
+        deactivate ep.getExecutor
+        DubboBootstrap.exportService -> DubboBootstrap.exportService: 将这个服务放入线程池，\n发布服务
+    else 如果是同步发布
+        DubboBootstrap.exportService -> sc.export: 直接发布
+        activate sc.export
+        sc.export -> sc.export: 检查各项\n配置是否合理，\n补齐一些缺省\n的配置信息
+        sc.export -> sc.export: 初始化元数据
+        alt 如果配置延迟发布
+            sc.export -> sc.export: 在定时线程池\n执行
+        else 否则直接发布
+            sc.export -> sc.doExport: 直接发布
+            activate sc.doExport
+            sc.doExport -> sc.doExport: 做一些暴露\n状态的检查
+            sc.doExport -> sc.doExportUrls: 发布
+            activate sc.doExportUrls
+            sc.doExportUrls -> sc.doExportUrls: 加载注册中心的信息，\n将<dubbo:registry>\n转化为URL
+            loop 每个协议对应一个ProtocolConfig，这里使用服务配置的协议向注册中心发布服务
+                sc.doExportUrls -> sc.doExportUrlsFor1Protocol: 使用单个\nProtocolConfig的发布
+                activate sc.doExportUrlsFor1Protocol
+                sc.doExportUrlsFor1Protocol -> sc.doExportUrlsFor1Protocol: 组装服务的URL
+                sc.doExportUrlsFor1Protocol -> sc.doExportUrlsFor1Protocol: 获取host, prot配置
+                sc.doExportUrlsFor1Protocol -> sc.doExportUrlsFor1Protocol: 通过Configurator覆盖\n或添加新配置
+                sc.doExportUrlsFor1Protocol -> sc.doExportUrlsFor1Protocol: 获取scope配置
+                alt scope = local，本地发布
+                    sc.doExportUrlsFor1Protocol -> sc.exportLocal: 本地发布\n(发布到一个exporterMap)
+                else scope = remote，远程发布
+                    loop 发布到每个注册中心
+                        opt 如果是inJVM协议，忽略
+                            sc.doExportUrlsFor1Protocol -> sc.doExportUrlsFor1Protocol
+                        end
+                        sc.doExportUrlsFor1Protocol -> ProxyFactory.getInvoker: 为服务实现类ref创建对应invoker
+                        activate ProxyFactory.getInvoker
+                        ProxyFactory.getInvoker --> sc.doExportUrlsFor1Protocol: AbstractProxyInvoker的实现类
+                        deactivate ProxyFactory.getInvoker
+                        sc.doExportUrlsFor1Protocol -> rp.export: 发布服务（因为注册中心的协议是registry://，所以这里使用RegistryProtocol）
+                        activate rp.export
+                        rp.export -> rp.export: 准备 URL，\n比如 ProviderURL、\nRegistryURL \n和 OverrideSubscribeUrl
+                        rp.export -> rp.doLocalExport: 调用\nDubboProtocol.export()，\n开启对应server
+                        rp.export -> rp.register: 调用Registry.register()，将服务注册到注册中心
+                        rp.export -> Rigistry.subscribe: 向注册中心\n订阅override数据，\n主要是监听该服务的\nconfigurators节点
+                        rp.export -> rp.export: 触发\nRegistryProtocolListener\n监听器
+                        rp.export --> sc.doExportUrlsFor1Protocol: 返回一个DestryableExporter
+                        deactivate rp.export
+                        sc.doExportUrlsFor1Protocol -> sc.doExportUrlsFor1Protocol: 加入Map缓存
+                    end
+                    deactivate sc.doExportUrlsFor1Protocol
+                end
+            end
+            deactivate sc.doExportUrls
+            deactivate sc.doExport
+        end
+        deactivate sc.export
+    end
+    deactivate DubboBootstrap.exportService
+end
+
+@enduml

@@ -1,0 +1,13 @@
+@startuml
+'https://plantuml.com/sequence-diagram
+
+autonumber
+
+activate RegistryProtocol.export
+
+RegistryProtocol.export -> RegistryProtocol.export: 准备 URL，比如 ProviderURL、RegistryURL 和 OverrideSubscribeUrl
+RegistryProtocol.export -> RegistryProtocol.export: 发布 Dubbo 服务。在 doLocalExport() 方法中调用 DubboProtocol.export() 方法启动 Provider 端底层 Server
+RegistryProtocol.export -> RegistryProtocol.export: 注册 Dubbo 服务。在 register() 方法中，调用 ZookeeperRegistry.register() 方法向 Zookeeper 注册服务
+RegistryProtocol.export -> RegistryProtocol.export: 订阅 Provider 端的 Override 配置。调用 ZookeeperRegistry.subscribe() 方法订阅注册中心 configurators 节点下的配置变更
+RegistryProtocol.export -> RegistryProtocol.export: 触发 RegistryProtocolListener 监听器
+@enduml

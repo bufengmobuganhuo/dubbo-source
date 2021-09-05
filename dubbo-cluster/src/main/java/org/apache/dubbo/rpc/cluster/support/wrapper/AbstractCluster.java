@@ -34,9 +34,19 @@ import static org.apache.dubbo.common.constants.CommonConstants.REFERENCE_INTERC
 
 public abstract class AbstractCluster implements Cluster {
 
+    @Override
+    public <T> Invoker<T> join(Directory<T> directory) throws RpcException {
+        // doJoin()方法由子类实现，主要用于创建真正的ClusterInvoker，比如FailbackCluster创建的就是FailbackClusterInvoker
+        return buildClusterInterceptors(doJoin(directory), directory.getUrl().getParameter(REFERENCE_INTERCEPTOR_KEY));
+    }
+
+    // 生成了一个 interceptors1 -> interceptors2 -> ClusterInvoker的链条
     private <T> Invoker<T> buildClusterInterceptors(AbstractClusterInvoker<T> clusterInvoker, String key) {
+        // 最后面一个是真正的发起远程调用的invoker
         AbstractClusterInvoker<T> last = clusterInvoker;
-        List<ClusterInterceptor> interceptors = ExtensionLoader.getExtensionLoader(ClusterInterceptor.class).getActivateExtension(clusterInvoker.getUrl(), key);
+        // 通过SPI方式加载ClusterInterceptor扩展实现
+        List<ClusterInterceptor> interceptors =
+                ExtensionLoader.getExtensionLoader(ClusterInterceptor.class).getActivateExtension(clusterInvoker.getUrl(), key);
 
         if (!interceptors.isEmpty()) {
             for (int i = interceptors.size() - 1; i >= 0; i--) {
@@ -46,11 +56,6 @@ public abstract class AbstractCluster implements Cluster {
             }
         }
         return last;
-    }
-
-    @Override
-    public <T> Invoker<T> join(Directory<T> directory) throws RpcException {
-        return buildClusterInterceptors(doJoin(directory), directory.getUrl().getParameter(REFERENCE_INTERCEPTOR_KEY));
     }
 
     protected abstract <T> AbstractClusterInvoker<T> doJoin(Directory<T> directory) throws RpcException;
@@ -88,16 +93,19 @@ public abstract class AbstractCluster implements Cluster {
         public Result invoke(Invocation invocation) throws RpcException {
             Result asyncResult;
             try {
+                // 前置逻辑
                 interceptor.before(next, invocation);
+                // 执行invoke()，完成远程调用（一只沿着调用链往下走，直到到达Abstract）
                 asyncResult = interceptor.intercept(next, invocation);
             } catch (Exception e) {
-                // onError callback
+                // 出现异常时，触发监听器的onError()方法
                 if (interceptor instanceof ClusterInterceptor.Listener) {
                     ClusterInterceptor.Listener listener = (ClusterInterceptor.Listener) interceptor;
                     listener.onError(e, clusterInvoker, invocation);
                 }
                 throw e;
             } finally {
+                // 后置逻辑
                 interceptor.after(next, invocation);
             }
             return asyncResult.whenCompleteWithContext((r, t) -> {
@@ -105,6 +113,7 @@ public abstract class AbstractCluster implements Cluster {
                 if (interceptor instanceof ClusterInterceptor.Listener) {
                     ClusterInterceptor.Listener listener = (ClusterInterceptor.Listener) interceptor;
                     if (t == null) {
+                        // 正常返回时，调用onMessage()触发监听器
                         listener.onMessage(r, clusterInvoker, invocation);
                     } else {
                         listener.onError(t, clusterInvoker, invocation);
