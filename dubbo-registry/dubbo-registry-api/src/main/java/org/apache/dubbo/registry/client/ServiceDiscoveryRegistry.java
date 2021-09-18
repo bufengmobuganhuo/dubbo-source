@@ -149,12 +149,18 @@ public class ServiceDiscoveryRegistry extends FailbackRegistry {
     private final Map<String, Map<String, List<URL>>> serviceRevisionExportedURLsCache = new LinkedHashMap<>();
 
     public ServiceDiscoveryRegistry(URL registryURL) {
+        // 初始化父类，其中包括FailbackRegistry中的时间轮和重试定时任务以及AbstractRegistry中的本地文件缓存等
         super(registryURL);
+        // 初始化ServiceDiscovery对象
         this.serviceDiscovery = createServiceDiscovery(registryURL);
+        // 从registryURL中解析出subscribed-services参数，并按照逗号切分，得到subscribedServices集合(当前订阅的服务名称)
         this.subscribedServices = parseServices(registryURL.getParameter(SUBSCRIBED_SERVICE_NAMES_KEY));
+        // 获取DefaultServiceNameMapping对象
         this.serviceNameMapping = ServiceNameMapping.getDefaultExtension();
+        // 初始化WritableMetadataService对象
         String metadataStorageType = getMetadataStorageType(registryURL);
         this.writableMetadataService = WritableMetadataService.getExtension(metadataStorageType);
+        // 获取目前支持的全部SubscribedURLsSynthesizer实现（订阅服务的完整信息），并初始化
         this.subscribedURLsSynthesizers = initSubscribedURLsSynthesizers();
     }
 
@@ -184,9 +190,14 @@ public class ServiceDiscoveryRegistry extends FailbackRegistry {
      * @return non-null
      */
     protected ServiceDiscovery createServiceDiscovery(URL registryURL) {
+        // 根据registryURL获取对应的ServiceDiscovery实现
         ServiceDiscovery originalServiceDiscovery = getServiceDiscovery(registryURL);
+        // ServiceDiscovery外层添加一层EventPublishingServiceDiscovery修饰器，
+        // EventPublishingServiceDiscovery会在register()、initialize()等方法前后触发相应的事件，
+        // 例如，在register()方法的前后分别会触发ServiceInstancePreRegisteredEvent和ServiceInstanceRegisteredEvent
         ServiceDiscovery serviceDiscovery = enhanceEventPublishing(originalServiceDiscovery);
         execute(() -> {
+            // 初始化ServiceDiscovery
             serviceDiscovery.initialize(registryURL.addParameter(INTERFACE_KEY, ServiceDiscovery.class.getName())
                     .removeParameter(REGISTRY_TYPE_KEY));
         });
@@ -244,11 +255,13 @@ public class ServiceDiscoveryRegistry extends FailbackRegistry {
         if (!shouldRegister(url)) { // Should Not Register
             return;
         }
+        // 父类FailbackRegistery会回调子类的doRegister()方法
         super.register(url);
     }
 
     @Override
     public void doRegister(URL url) {
+        // 元数据发布到MetadataService
         if (writableMetadataService.exportURL(url)) {
             if (logger.isInfoEnabled()) {
                 logger.info(format("The URL[%s] registered successfully.", url.toString()));
@@ -286,12 +299,26 @@ public class ServiceDiscoveryRegistry extends FailbackRegistry {
         if (!shouldSubscribe(url)) { // Should Not Subscribe
             return;
         }
+        // 父类FailbackRegistry会回调子类的doSubscribe()
         super.subscribe(url, listener);
     }
 
     @Override
     public void doSubscribe(URL url, NotifyListener listener) {
         subscribeURLs(url, listener);
+    }
+
+    protected void subscribeURLs(URL url, NotifyListener listener) {
+        // 调用 WriteMetadataService.subscribeURL() 方法在 subscribedServiceURLs 集合中记录当前订阅的 URL
+        writableMetadataService.subscribeURL(url);
+        // 通过订阅的 URL 获取 Service Name
+        Set<String> serviceNames = getServices(url);
+        if (CollectionUtils.isEmpty(serviceNames)) {
+            throw new IllegalStateException("Should has at least one way to know which services this interface belongs to, subscription url: " + url);
+        }
+        // 订阅
+        serviceNames.forEach(serviceName -> subscribeURLs(url, listener, serviceName));
+
     }
 
     @Override
@@ -321,26 +348,13 @@ public class ServiceDiscoveryRegistry extends FailbackRegistry {
         });
     }
 
-    protected void subscribeURLs(URL url, NotifyListener listener) {
-
-        writableMetadataService.subscribeURL(url);
-
-        Set<String> serviceNames = getServices(url);
-        if (CollectionUtils.isEmpty(serviceNames)) {
-            throw new IllegalStateException("Should has at least one way to know which services this interface belongs to, subscription url: " + url);
-        }
-
-        serviceNames.forEach(serviceName -> subscribeURLs(url, listener, serviceName));
-
-    }
-
     protected void subscribeURLs(URL url, NotifyListener listener, String serviceName) {
-
+        // 根据Service Name获取ServiceInstance对象
         List<ServiceInstance> serviceInstances = serviceDiscovery.getInstances(serviceName);
-
+        // 订阅
         subscribeURLs(url, listener, serviceName, serviceInstances);
 
-        // register ServiceInstancesChangedListener
+        // 注册 ServiceInstancesChangedListener 监听器
         registerServiceInstancesChangedListener(url, new ServiceInstancesChangedListener(serviceName) {
 
             @Override
@@ -348,23 +362,6 @@ public class ServiceDiscoveryRegistry extends FailbackRegistry {
                 subscribeURLs(url, listener, event.getServiceName(), new ArrayList<>(event.getServiceInstances()));
             }
         });
-    }
-
-    /**
-     * Register the {@link ServiceInstancesChangedListener} If absent
-     *
-     * @param url      {@link URL}
-     * @param listener the {@link ServiceInstancesChangedListener}
-     */
-    private void registerServiceInstancesChangedListener(URL url, ServiceInstancesChangedListener listener) {
-        String listenerId = createListenerId(url, listener);
-        if (registeredListeners.add(listenerId)) {
-            serviceDiscovery.addServiceInstancesChangedListener(listener);
-        }
-    }
-
-    private String createListenerId(URL url, ServiceInstancesChangedListener listener) {
-        return listener.getServiceName() + ":" + url.toString(VERSION_KEY, GROUP_KEY, PROTOCOL_KEY);
     }
 
     /**
@@ -390,19 +387,32 @@ public class ServiceDiscoveryRegistry extends FailbackRegistry {
 
         List<URL> subscribedURLs = new LinkedList<>();
 
-        /**
-         * Add the exported URLs from {@link MetadataService}
-         */
+        // 尝试通过MetadataService获取subscribedURL集合
         subscribedURLs.addAll(getExportedURLs(subscribedURL, serviceInstances));
 
         if (subscribedURLs.isEmpty()) { // If empty, try to synthesize
-            /**
-             * Add the subscribed URLs that were synthesized
-             */
+            // 尝试通过SubscribedURLsSynthesizer获取subscribedURL集合
             subscribedURLs.addAll(synthesizeSubscribedURLs(subscribedURL, serviceInstances));
         }
 
         listener.notify(subscribedURLs);
+    }
+
+    /**
+     * Register the {@link ServiceInstancesChangedListener} If absent
+     *
+     * @param url      {@link URL}
+     * @param listener the {@link ServiceInstancesChangedListener}
+     */
+    private void registerServiceInstancesChangedListener(URL url, ServiceInstancesChangedListener listener) {
+        String listenerId = createListenerId(url, listener);
+        if (registeredListeners.add(listenerId)) {
+            serviceDiscovery.addServiceInstancesChangedListener(listener);
+        }
+    }
+
+    private String createListenerId(URL url, ServiceInstancesChangedListener listener) {
+        return listener.getServiceName() + ":" + url.toString(VERSION_KEY, GROUP_KEY, PROTOCOL_KEY);
     }
 
     /**
@@ -428,10 +438,9 @@ public class ServiceDiscoveryRegistry extends FailbackRegistry {
             return emptyList();
         }
 
-        // Prepare revision exported URLs
+        // 从第一个ServiceInstance即可获取Service Name
         prepareServiceRevisionExportedURLs(serviceInstances);
 
-        // Clone the subscribed URLs from the template URLs
         List<URL> subscribedURLs = cloneExportedURLs(subscribedURL, serviceInstances);
 
         // clear local service instances
@@ -507,19 +516,22 @@ public class ServiceDiscoveryRegistry extends FailbackRegistry {
      */
     private void expungeStaleRevisionExportedURLs(List<ServiceInstance> serviceInstances) {
 
+        // 从第一个ServiceInstance即可获取Service Name
         String serviceName = serviceInstances.get(0).getServiceName();
-        // revisionExportedURLsMap is mutable
+        // 获取该Service Name当前在
+        // serviceRevisionExportedURLsCache（Map<ServiceName, Map<Revision, ServiceName对应的最新URL集合>>）中对应的URL集合
         Map<String, List<URL>> revisionExportedURLsMap = getRevisionExportedURLsMap(serviceName);
-
-        if (revisionExportedURLsMap.isEmpty()) { // if empty, return immediately
+        if (revisionExportedURLsMap.isEmpty()) { // 没有缓存任何URL，则无须后续清理操作，直接返回即可
             return;
         }
 
+        // 获取Service Name在serviceRevisionExportedURLsCache中缓存的修订版本
         Set<String> existedRevisions = revisionExportedURLsMap.keySet(); // read-only
+        // 从ServiceInstance中获取当前最新的修订版本
         Set<String> currentRevisions = serviceInstances.stream()
                 .map(ServiceInstanceMetadataUtils::getExportedServicesRevision)
                 .collect(Collectors.toSet());
-        // staleRevisions = existedRevisions(copy) - currentRevisions
+        // 获取要删除的陈旧修订版本：staleRevisions = existedRevisions(copy) - currentRevisions
         Set<String> staleRevisions = new HashSet<>(existedRevisions);
         staleRevisions.removeAll(currentRevisions);
         // remove exported URLs if staled
@@ -543,11 +555,13 @@ public class ServiceDiscoveryRegistry extends FailbackRegistry {
         List<URL> clonedExportedURLs = new LinkedList<>();
 
         serviceInstances.forEach(serviceInstance -> {
-
+            // 获取该ServiceInstance的host
             String host = serviceInstance.getHost();
-
+            // 获取该ServiceInstance的模板URL集合，getTemplateExportedURLs()方法会根据Service Name以及当前ServiceInstance的revision
+            // 从serviceRevisionExportedURLsCache缓存中获取对应的URL集合，另外，还会根据subscribedURL的protocol、group、version等参数进行过滤
             getTemplateExportedURLs(subscribedURL, serviceInstance)
                     .stream()
+                     // 删除timestamp、pid等参数
                     .map(templateURL -> templateURL.removeParameter(TIMESTAMP_KEY))
                     .map(templateURL -> templateURL.removeParameter(PID_KEY))
                     .map(templateURL -> {
@@ -557,7 +571,7 @@ public class ServiceDiscoveryRegistry extends FailbackRegistry {
                                 && Objects.equals(templateURL.getPort(), port)) { // use templateURL if equals
                             return templateURL;
                         }
-
+                        // 覆盖host、port参数
                         URLBuilder clonedURLBuilder = from(templateURL) // remove the parameters from the template URL
                                 .setHost(host)  // reset the host
                                 .setPort(port); // reset the port
@@ -627,21 +641,21 @@ public class ServiceDiscoveryRegistry extends FailbackRegistry {
      * {@link ServiceInstanceMetadataUtils#getExportedServicesRevision(ServiceInstance) revision} is hit
      */
     private List<URL> initializeRevisionExportedURLs(ServiceInstance serviceInstance) {
-
         if (serviceInstance == null) {
             return emptyList();
         }
 
+        // 获取Service Name
         String serviceName = serviceInstance.getServiceName();
-        // get the revision from the specified {@link ServiceInstance}
+        // 获取该ServiceInstance.metadata中携带的revision值
         String revision = getExportedServicesRevision(serviceInstance);
-
+        // 从serviceRevisionExportedURLsCache集合中获取该revision值对应的URL集合
         Map<String, List<URL>> revisionExportedURLsMap = getRevisionExportedURLsMap(serviceName);
-
         List<URL> revisionExportedURLs = revisionExportedURLsMap.get(revision);
 
         boolean firstGet = false;
 
+        // serviceRevisionExportedURLsCache缓存未命中
         if (revisionExportedURLs == null) { // The hit is missing in cache
 
             if (!revisionExportedURLsMap.isEmpty()) { // The case is that current ServiceInstance with the different revision
@@ -658,9 +672,9 @@ public class ServiceDiscoveryRegistry extends FailbackRegistry {
             } else { // Else, it's the first time to get the exported URLs
                 firstGet = true;
             }
-
+            // 调用该ServiceInstance对应的MetadataService服务，获取其发布的URL集合
             revisionExportedURLs = getExportedURLs(serviceInstance);
-
+            // 调用MetadataService服务成功之后，更新到serviceRevisionExportedURLsCache缓存中
             if (revisionExportedURLs != null) { // just allow the valid result into exportedURLsMap
 
                 revisionExportedURLsMap.put(revision, revisionExportedURLs);
@@ -743,13 +757,15 @@ public class ServiceDiscoveryRegistry extends FailbackRegistry {
     private List<URL> getExportedURLs(ServiceInstance providerServiceInstance) {
 
         List<URL> exportedURLs = null;
-
+        // 获取指定ServiceInstance实例存储元数据的类型
         String metadataStorageType = getMetadataStorageType(providerServiceInstance);
 
         try {
+            // 创建MetadataService接口的本地代理
             MetadataService metadataService = MetadataServiceProxyFactory.getExtension(metadataStorageType)
                     .getProxy(providerServiceInstance);
             if (metadataService != null) {
+                // 通过本地代理，请求该ServiceInstance的MetadataService服务
                 SortedSet<String> urls = metadataService.getExportedURLs();
                 exportedURLs = toURLs(urls);
             }
@@ -808,15 +824,18 @@ public class ServiceDiscoveryRegistry extends FailbackRegistry {
      */
     protected Set<String> getServices(URL subscribedURL) {
         Set<String> subscribedServices = new LinkedHashSet<>();
-
+        // 首先尝试从subscribeURL中获取provided-by参数值，其中封装了全部Service Name
         String serviceNames = subscribedURL.getParameter(PROVIDED_BY);
         if (StringUtils.isNotEmpty(serviceNames)) {
             subscribedServices = parseServices(serviceNames);
         }
 
         if (isEmpty(subscribedServices)) {
+            // 如果没有指定provided-by参数，则尝试通过subscribedURL构造Service ID，
+            // 然后通过ServiceNameMapping的get()方法查找Service Name
             subscribedServices = findMappedServices(subscribedURL);
             if (isEmpty(subscribedServices)) {
+                // 如果subscribedServices依旧为空，则返回registryURL中的subscribed-services参数值
                 subscribedServices = getSubscribedServices();
             }
         }

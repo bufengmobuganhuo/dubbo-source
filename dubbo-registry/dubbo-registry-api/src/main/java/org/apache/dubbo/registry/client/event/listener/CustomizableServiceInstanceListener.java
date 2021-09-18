@@ -33,7 +33,7 @@ public class CustomizableServiceInstanceListener implements EventListener<Servic
     public void onEvent(ServiceInstancePreRegisteredEvent event) {
         ExtensionLoader<ServiceInstanceCustomizer> loader =
                 ExtensionLoader.getExtensionLoader(ServiceInstanceCustomizer.class);
-        // FIXME, sort customizer before apply
+        // 按序实现ServiceInstance自定义
         loader.getSupportedExtensionInstances().forEach(customizer -> {
             // customizes
             customizer.customize(event.getServiceInstance());

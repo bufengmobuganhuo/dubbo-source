@@ -41,49 +41,31 @@ import static org.apache.dubbo.common.utils.ReflectUtils.findParameterizedTypes;
 @FunctionalInterface
 public interface EventListener<E extends Event> extends java.util.EventListener, Prioritized {
 
-    /**
-     * Handle a {@link Event Dubbo Event} when it's be published
-     *
-     * @param event a {@link Event Dubbo Event}
-     */
+    // 当发生该EventListener对象关注的事件时，该EventListener的onEvent()方法会被调用
     void onEvent(E event);
 
-    /**
-     * The priority of {@link EventListener current listener}.
-     *
-     * @return the value is more greater, the priority is more lower.
-     * {@link Integer#MIN_VALUE} indicates the highest priority. The default value is {@link Integer#MAX_VALUE}.
-     * The comparison rule , refer to {@link #compareTo}.
-     */
+    // 当前EventListener对象被调用的优先级
     default int getPriority() {
         return MIN_PRIORITY;
     }
 
-    /**
-     * Find the {@link Class type} {@link Event Dubbo event} from the specified {@link EventListener Dubbo event listener}
-     *
-     * @param listener the {@link Class class} of {@link EventListener Dubbo event listener}
-     * @return <code>null</code> if not found
-     */
+    // 获取传入的EventListener对象监听何种Event事件
     static Class<? extends Event> findEventType(EventListener<?> listener) {
         return findEventType(listener.getClass());
     }
 
-    /**
-     * Find the {@link Class type} {@link Event Dubbo event} from the specified {@link EventListener Dubbo event listener}
-     *
-     * @param listenerClass the {@link Class class} of {@link EventListener Dubbo event listener}
-     * @return <code>null</code> if not found
-     */
+    // 获取传入的EventListener对象监听何种Event事件
     static Class<? extends Event> findEventType(Class<?> listenerClass) {
         Class<? extends Event> eventType = null;
-
+        // 检测传入listenerClass是否为Dubbo的EventListener接口实现
         if (listenerClass != null && EventListener.class.isAssignableFrom(listenerClass)) {
             eventType = findParameterizedTypes(listenerClass)
                     .stream()
+                    // 获取listenerClass中定义的Event泛型
                     .map(EventListener::findEventType)
                     .filter(Objects::nonNull)
                     .findAny()
+                    // 获取listenerClass父类中定义的Event泛型
                     .orElse((Class) findEventType(listenerClass.getSuperclass()));
         }
 

@@ -34,22 +34,9 @@ import java.util.List;
 @SPI
 public interface SubscribedURLsSynthesizer extends Prioritized {
 
-    /**
-     * Supports the synthesis of the subscribed {@link URL URLs} or not
-     *
-     * @param subscribedURL the original subscribed {@link URL} from the execution of`
-     *                      {@link Registry#subscribe(URL, NotifyListener)} method
-     * @return if supports, return <code>true</code>, or <code>false</code>
-     */
+    // 是否支持该类型的URL
     boolean supports(URL subscribedURL);
 
-    /**
-     * synthesize the subscribed {@link URL URLs}
-     *
-     * @param subscribedURL    the original subscribed {@link URL} from the execution of`
-     *                         {@link Registry#subscribe(URL, NotifyListener)} method
-     * @param serviceInstances
-     * @return
-     */
+    // 根据subscribedURL以及ServiceInstance的信息，合成完整subscribedURL集合
     List<URL> synthesize(URL subscribedURL, Collection<ServiceInstance> serviceInstances);
 }

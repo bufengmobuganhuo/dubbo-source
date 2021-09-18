@@ -42,13 +42,13 @@ public class ExportedServicesRevisionMetadataCustomizer extends ServiceInstanceM
 
     @Override
     protected String resolveMetadataPropertyValue(ServiceInstance serviceInstance) {
-
+        // 从ServiceInstance对象的metadata集合中获取当前ServiceInstance存储元数据的方式（local还是remote）
         String metadataStorageType = getMetadataStorageType(serviceInstance);
-
+        // 获取相应的WritableMetadataService对象，并获取当前ServiceInstance发布的全部元数据
         WritableMetadataService writableMetadataService = getExtension(metadataStorageType);
 
         SortedSet<String> exportedURLs = writableMetadataService.getExportedURLs();
-
+        // 计算整个exportedURLs集合的revision值
         URLRevisionResolver resolver = new URLRevisionResolver();
 
         return resolver.resolve(exportedURLs);

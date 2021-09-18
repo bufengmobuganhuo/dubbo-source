@@ -113,13 +113,14 @@ public abstract class AbstractEventDispatcher implements EventDispatcher {
 
     @Override
     public void dispatch(Event event) {
-
+        // 获取通知EventListener的线程池，默认为串行模式，也就是direct实现
         Executor executor = getExecutor();
 
         // execute in sequential or parallel execution model
         executor.execute(() -> {
             sortedListeners(entry -> entry.getKey().isAssignableFrom(event.getClass()))
                     .forEach(listener -> {
+                        // 针对ConditionalEventListener的特殊处
                         if (listener instanceof ConditionalEventListener) {
                             ConditionalEventListener predicateEventListener = (ConditionalEventListener) listener;
                             if (!predicateEventListener.accept(event)) { // No accept

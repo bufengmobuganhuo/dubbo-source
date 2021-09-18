@@ -27,70 +27,35 @@ import java.util.Map;
  */
 public interface ServiceInstance extends Serializable {
 
-    /**
-     * The id of the registered service instance.
-     *
-     * @return nullable
-     */
+    // 服务的唯一标识
     String getId();
 
-    /**
-     * The name of service that current instance belongs to.
-     *
-     * @return non-null
-     */
+    // 当前服务实例对应的服务名称（一种服务只有一个名称）
     String getServiceName();
 
-    /**
-     * The hostname of the registered service instance.
-     *
-     * @return non-null
-     */
+    // 服务实例的host
     String getHost();
 
-    /**
-     * The port of the registered service instance.
-     *
-     * @return the positive integer if present
-     */
+    // 服务实例的port
     Integer getPort();
 
-    /**
-     * The enable status of the registered service instance.
-     *
-     * @return if <code>true</code>, indicates current instance is enabled, or disable, the client should remove this one.
-     * The default value is <code>true</code>
-     */
+    // 当前服务实例的状态
     default boolean isEnabled() {
         return true;
     }
 
-    /**
-     * The registered service instance is health or not.
-     *
-     * @return if <code>true</code>, indicates current instance is enabled, or disable, the client may ignore this one.
-     * The default value is <code>true</code>
-     */
+    // 检测当前服务实例的状态
     default boolean isHealthy() {
         return true;
     }
 
-    /**
-     * The key / value pair metadata associated with the service instance.
-     *
-     * @return non-null, mutable and unsorted {@link Map}
-     */
+    // 获取当前服务实例关联的元数据
     Map<String, String> getMetadata();
 
-    /**
-     * @return the hash code of current instance.
-     */
+    // 计算当前服务实例的hashCode值
     int hashCode();
 
-    /**
-     * @param another another {@link ServiceInstance}
-     * @return if equals , return <code>true</code>, or <code>false</code>
-     */
+    // 比较两个服务实例
     boolean equals(Object another);
 
 }

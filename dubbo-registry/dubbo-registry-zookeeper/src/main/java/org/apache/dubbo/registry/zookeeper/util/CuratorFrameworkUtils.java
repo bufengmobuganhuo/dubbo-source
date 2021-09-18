@@ -80,16 +80,6 @@ public abstract class CuratorFrameworkUtils {
         return instances.stream().map(CuratorFrameworkUtils::build).collect(Collectors.toList());
     }
 
-    public static ServiceInstance build(org.apache.curator.x.discovery.ServiceInstance<ZookeeperInstance> instance) {
-        String name = instance.getName();
-        String host = instance.getAddress();
-        int port = instance.getPort();
-        ZookeeperInstance zookeeperInstance = instance.getPayload();
-        DefaultServiceInstance serviceInstance = new DefaultServiceInstance(instance.getId(), name, host, port);
-        serviceInstance.setMetadata(zookeeperInstance.getMetadata());
-        return serviceInstance;
-    }
-
     public static org.apache.curator.x.discovery.ServiceInstance<ZookeeperInstance> build(ServiceInstance serviceInstance) {
         ServiceInstanceBuilder builder = null;
         String serviceName = serviceInstance.getServiceName();
@@ -100,15 +90,25 @@ public abstract class CuratorFrameworkUtils {
         ZookeeperInstance zookeeperInstance = new ZookeeperInstance(null, serviceName, metadata);
         try {
             builder = builder()
-                    .id(id)
-                    .name(serviceName)
-                    .address(host)
-                    .port(port)
-                    .payload(zookeeperInstance);
+                .id(id)
+                .name(serviceName)
+                .address(host)
+                .port(port)
+                .payload(zookeeperInstance);
         } catch (Exception e) {
             throw new RuntimeException(e);
         }
         return builder.build();
+    }
+
+    public static ServiceInstance build(org.apache.curator.x.discovery.ServiceInstance<ZookeeperInstance> instance) {
+        String name = instance.getName();
+        String host = instance.getAddress();
+        int port = instance.getPort();
+        ZookeeperInstance zookeeperInstance = instance.getPayload();
+        DefaultServiceInstance serviceInstance = new DefaultServiceInstance(instance.getId(), name, host, port);
+        serviceInstance.setMetadata(zookeeperInstance.getMetadata());
+        return serviceInstance;
     }
 
     public static final String generateId(String host, int port) {

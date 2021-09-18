@@ -26,9 +26,13 @@ import java.util.Objects;
  */
 public class ServiceDefinition implements Serializable {
 
+    // 接口完全限定名
     private String canonicalName;
+    // 服务接口所在的完整路径
     private String codeSource;
+    // 接口中定义的全部方法的描述信息，如方法名称，参数类型，返回值类型
     private List<MethodDefinition> methods;
+    // 接口定义中涉及的全部类型描述信息，包括方法的参数和字段，如果遇到复杂类型，TypeDefinition 会递归获取复杂类型内部的字段
     private List<TypeDefinition> types;
 
     public String getCanonicalName() {

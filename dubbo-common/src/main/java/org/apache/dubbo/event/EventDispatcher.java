@@ -32,34 +32,18 @@ import java.util.concurrent.Executor;
 @SPI("direct")
 public interface EventDispatcher extends Listenable<EventListener<?>> {
 
-    /**
-     * Direct {@link Executor} uses sequential execution model
-     */
+    // 该线程池用于"串行"(同步的方式)调用被触发的EventListener，也就是direct模式
     Executor DIRECT_EXECUTOR = Runnable::run;
 
-    /**
-     * Dispatch a Dubbo event to the registered {@link EventListener Dubbo event listeners}
-     *
-     * @param event a {@link Event Dubbo event}
-     */
+    // 将被触发的事件分发给相应的EventListener对象
     void dispatch(Event event);
 
-    /**
-     * The {@link Executor} to dispatch a {@link Event Dubbo event}
-     *
-     * @return default implementation directly invoke {@link Runnable#run()} method, rather than multiple-threaded
-     * {@link Executor}. If the return value is <code>null</code>, the behavior is same as default.
-     * @see #DIRECT_EXECUTOR
-     */
+    // 获取direct模式中使用的线程池
     default Executor getExecutor() {
         return DIRECT_EXECUTOR;
     }
 
-    /**
-     * The default extension of {@link EventDispatcher} is loaded by {@link ExtensionLoader}
-     *
-     * @return the default extension of {@link EventDispatcher}
-     */
+    // 工具方法，用于获取EventDispatcher接口的默认实现
     static EventDispatcher getDefaultExtension() {
         return ExtensionLoader.getExtensionLoader(EventDispatcher.class).getDefaultExtension();
     }

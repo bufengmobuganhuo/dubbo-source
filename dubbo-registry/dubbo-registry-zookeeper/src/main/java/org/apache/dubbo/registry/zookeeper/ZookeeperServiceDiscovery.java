@@ -71,10 +71,15 @@ public class ZookeeperServiceDiscovery implements ServiceDiscovery, EventListene
 
     @Override
     public void initialize(URL registryURL) throws Exception {
+        // 初始化时间分发器
         this.dispatcher = EventDispatcher.getDefaultExtension();
+        // 添加事件监听器
         this.dispatcher.addEventListener(this);
+        // 初始化CuratorFramework
         this.curatorFramework = buildCuratorFramework(registryURL);
+        // 确定rootPath，默认是"/services"
         this.rootPath = ROOT_PATH.getParameterValue(registryURL);
+        // 初始化CuratorServiceDiscovery并启动
         this.serviceDiscovery = buildServiceDiscovery(curatorFramework, rootPath);
         this.serviceDiscovery.start();
     }
@@ -160,11 +165,27 @@ public class ZookeeperServiceDiscovery implements ServiceDiscovery, EventListene
         return execute(serviceDiscovery, function);
     }
 
+    private String buildServicePath(String serviceName) {
+        return rootPath + "/" + serviceName;
+    }
+
+    @Override
+    public void onEvent(ServiceInstancesChangedEvent event) {
+        // 发生ServiceInstancesChangedEvent事件的Service Name
+        String serviceName = event.getServiceName();
+        // 当ServiceInstance发生变化时，会重新注册监听器
+        registerServiceWatcher(serviceName);
+    }
+
     protected void registerServiceWatcher(String serviceName) {
+        // 构造要监听的path
         String path = buildServicePath(serviceName);
+        // 创建监听器ZookeeperServiceDiscoveryChangeWatcher并记录到watcherCaches缓存中
         CuratorWatcher watcher = watcherCaches.computeIfAbsent(path, key ->
-                new ZookeeperServiceDiscoveryChangeWatcher(this, serviceName));
+            new ZookeeperServiceDiscoveryChangeWatcher(this, serviceName));
         try {
+            // 在path上添加上面构造的ZookeeperServiceDiscoveryChangeWatcher监听器，
+            // 来监听子节点的变化
             curatorFramework.getChildren().usingWatcher(watcher).forPath(path);
         } catch (KeeperException.NoNodeException e) {
             // ignored
@@ -174,16 +195,5 @@ public class ZookeeperServiceDiscovery implements ServiceDiscovery, EventListene
         } catch (Exception e) {
             throw new IllegalStateException(e.getMessage(), e);
         }
-    }
-
-    private String buildServicePath(String serviceName) {
-        return rootPath + "/" + serviceName;
-    }
-
-    @Override
-    public void onEvent(ServiceInstancesChangedEvent event) {
-        String serviceName = event.getServiceName();
-        // re-register again
-        registerServiceWatcher(serviceName);
     }
 }

@@ -72,28 +72,29 @@ public class RemoteWritableMetadataService implements WritableMetadataService {
 
     @Override
     public void publishServiceDefinition(URL url) {
+        // 获取URL中的side参数值，决定调用publishProvider()还是publishConsumer()方法
         String side = url.getParameter(SIDE_KEY);
         if (PROVIDER_SIDE.equalsIgnoreCase(side)) {
-            //TODO, the params part is duplicate with that stored by exportURL(url), can be further optimized in the future.
             publishProvider(url);
         } else {
-            //TODO, only useful for ops showing the url parameters, this is duplicate with subscribeURL(url), can be removed in the future.
             publishConsumer(url);
         }
     }
 
     private void publishProvider(URL providerUrl) throws RpcException {
-        //first add into the list
-        // remove the individual param
+        // 删除pid、timestamp、bind.ip、bind.port等参数
         providerUrl = providerUrl.removeParameters(PID_KEY, TIMESTAMP_KEY, Constants.BIND_IP_KEY,
                 Constants.BIND_PORT_KEY, TIMESTAMP_KEY);
 
         try {
+            // 获取服务接口名称
             String interfaceName = providerUrl.getParameter(INTERFACE_KEY);
             if (StringUtils.isNotEmpty(interfaceName)) {
                 Class interfaceClass = Class.forName(interfaceName);
+                // 创建服务接口对应的FullServiceDefinition对象，URL中的参数会记录到FullServiceDefinition的params集合中
                 FullServiceDefinition fullServiceDefinition = ServiceDefinitionBuilder.buildFullDefinition(interfaceClass,
                         providerUrl.getParameters());
+                // 获取MetadataReport并上报FullServiceDefinition
                 getMetadataReport().storeProviderMetadata(new MetadataIdentifier(providerUrl.getServiceInterface(),
                         providerUrl.getParameter(VERSION_KEY), providerUrl.getParameter(GROUP_KEY),
                         PROVIDER_SIDE, providerUrl.getParameter(APPLICATION_KEY)), fullServiceDefinition);
@@ -107,8 +108,10 @@ public class RemoteWritableMetadataService implements WritableMetadataService {
     }
 
     private void publishConsumer(URL consumerURL) throws RpcException {
+        // 清理 Consumer URL 中 pid、timestamp 等参数
         consumerURL = consumerURL.removeParameters(PID_KEY, TIMESTAMP_KEY, Constants.BIND_IP_KEY,
                 Constants.BIND_PORT_KEY, TIMESTAMP_KEY);
+        // 通过MetadataReport上报
         getMetadataReport().storeConsumerMetadata(new MetadataIdentifier(consumerURL.getServiceInterface(),
                 consumerURL.getParameter(VERSION_KEY), consumerURL.getParameter(GROUP_KEY), CONSUMER_SIDE,
                 consumerURL.getParameter(APPLICATION_KEY)), consumerURL.getParameters());
@@ -143,19 +146,24 @@ public class RemoteWritableMetadataService implements WritableMetadataService {
     @Override
     public boolean refreshMetadata(String exportedRevision, String subscribedRevision) {
         boolean result = true;
+        // 比较当前ServiceInstance的exportedRevision是否发生变化
         if (!StringUtils.isEmpty(exportedRevision) && !exportedRevision.equals(this.exportedRevision)) {
+            // 更新exportedRevision字段
             this.exportedRevision = exportedRevision;
+            // 将exportedServiceURLs集合中的URL使用MetadataReport发布到元数据中心
             boolean executeResult = saveServiceMetadata();
             if (!executeResult) {
                 result = false;
             }
         }
+        // 比较subscribedRevision是否发生变化
         if (!StringUtils.isEmpty(subscribedRevision) && !subscribedRevision.equals(this.subscribedRevision)
                 && CollectionUtils.isNotEmpty(writableMetadataService.getSubscribedURLs())) {
             this.subscribedRevision = subscribedRevision;
             SubscriberMetadataIdentifier metadataIdentifier = new SubscriberMetadataIdentifier();
             metadataIdentifier.setApplication(serviceName());
             metadataIdentifier.setRevision(subscribedRevision);
+            // 使用MetadataReport发布到元数据中心
             boolean executeResult = throwableAction(getMetadataReport()::saveSubscribedData, metadataIdentifier,
                     writableMetadataService.getSubscribedURLs());
             if (!executeResult) {

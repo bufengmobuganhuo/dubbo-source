@@ -455,16 +455,20 @@ public abstract class AbstractConfig implements Serializable {
     }
 
     public void refresh() {
+        // 获取Environment
         Environment env = ApplicationModel.getEnvironment();
         try {
+            // 将当前已初始化的所有Configuration合并返回
             CompositeConfiguration compositeConfiguration = env.getPrefixedConfiguration(this);
-            // loop methods, get override value and set the new value back to method
+            // 获取当前对象的所有方法
             Method[] methods = getClass().getMethods();
             for (Method method : methods) {
+                // 如果是Setter方法
                 if (MethodUtils.isSetter(method)) {
                     try {
+                        // 根据配置中心的相关配置以及Environment中的各个Configuration，获取该字段的最终值
                         String value = StringUtils.trim(compositeConfiguration.getString(extractPropertyName(getClass(), method)));
-                        // isTypeMatch() is called to avoid duplicate and incorrect update, for example, we have two 'setGeneric' methods in ReferenceConfig.
+                        // 调用setter方法更新ConfigCenterConfig的相应字段
                         if (StringUtils.isNotEmpty(value) && ClassUtils.isTypeMatch(method.getParameterTypes()[0], value)) {
                             method.invoke(this, ClassUtils.convertPrimitive(method.getParameterTypes()[0], value));
                         }
@@ -473,12 +477,14 @@ public abstract class AbstractConfig implements Serializable {
                                 this.getClass().getSimpleName() +
                                 ", please make sure every property has getter/setter method provided.");
                     }
-                } else if (isParametersSetter(method)) {
+                } else if (isParametersSetter(method)) { // 设置parameters字段，与设置其他字段的逻辑基本类似，但是实现有所不同
                     String value = StringUtils.trim(compositeConfiguration.getString(extractPropertyName(getClass(), method)));
                     if (StringUtils.isNotEmpty(value)) {
                         Map<String, String> map = invokeGetParameters(getClass(), this);
                         map = map == null ? new HashMap<>() : map;
+                        // 覆盖parameters集合
                         map.putAll(convert(StringUtils.parseParameters(value), ""));
+                        // 设置parameters字段
                         invokeSetParameters(getClass(), this, map);
                     }
                 }

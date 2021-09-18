@@ -97,6 +97,7 @@ public class CacheListener implements DataListener {
         }
 
         if (eventType == EventType.INITIALIZED) {
+            // 在收到INITIALIZED事件的时候，表示CacheListener已经成功注册，会释放阻塞在initializedLatch上的主线程
             initializedLatch.countDown();
             return;
         }
@@ -126,7 +127,9 @@ public class CacheListener implements DataListener {
 
             ConfigChangedEvent configChangeEvent = new ConfigChangedEvent(key, getGroup(path), (String) value, changeType);
             Set<ConfigurationListener> listeners = keyListeners.get(path);
+            // 把对应的变更事件发送给对应配置key的监听器处理
             if (CollectionUtils.isNotEmpty(listeners)) {
+                //
                 listeners.forEach(listener -> listener.process(configChangeEvent));
             }
         }

@@ -584,16 +584,19 @@ public class DubboBootstrap extends GenericEventListener {
     private void startConfigCenter() {
         Collection<ConfigCenterConfig> configCenters = configManager.getConfigCenters();
 
-        // check Config Center
+        // 没有指定配置中心
         if (CollectionUtils.isEmpty(configCenters)) {
             ConfigCenterConfig configCenterConfig = new ConfigCenterConfig();
+            // 刷新配置
             configCenterConfig.refresh();
             if (configCenterConfig.isValid()) {
                 configManager.addConfigCenter(configCenterConfig);
                 configCenters = configManager.getConfigCenters();
             }
         } else {
+            // 配置多个配置中心的情况下
             for (ConfigCenterConfig configCenterConfig : configCenters) {
+                // 刷新配置
                 configCenterConfig.refresh();
                 ConfigValidationUtils.validateConfigCenterConfig(configCenterConfig);
             }
@@ -601,11 +604,13 @@ public class DubboBootstrap extends GenericEventListener {
 
         if (CollectionUtils.isNotEmpty(configCenters)) {
             CompositeDynamicConfiguration compositeDynamicConfiguration = new CompositeDynamicConfiguration();
+            // 组合成一个对象
             for (ConfigCenterConfig configCenter : configCenters) {
                 compositeDynamicConfiguration.addConfiguration(prepareEnvironment(configCenter));
             }
             environment.setDynamicConfiguration(compositeDynamicConfiguration);
         }
+        // 刷新所有AbstractConfig对象
         configManager.refreshAll();
     }
 
@@ -884,10 +889,13 @@ public class DubboBootstrap extends GenericEventListener {
 
     private DynamicConfiguration prepareEnvironment(ConfigCenterConfig configCenter) {
         if (configCenter.isValid()) {
+            // 检查ConfigCenterConfig是否已初始化，这里不能重复初始化
             if (!configCenter.checkOrUpdateInited()) {
                 return null;
             }
+            // 根据ConfigCenterConfig中的各个字段，拼接出配置中心的URL，使用DynamicConfigurationFactory创建对应的DynamicConfiguration对象
             DynamicConfiguration dynamicConfiguration = getDynamicConfiguration(configCenter.toUrl());
+            // 从配置中心获取externalConfiguration和appExternalConfiguration，并进行覆盖
             String configContent = dynamicConfiguration.getProperties(configCenter.getConfigFile(), configCenter.getGroup());
 
             String appGroup = getApplication().getName();
@@ -899,12 +907,14 @@ public class DubboBootstrap extends GenericEventListener {
                         );
             }
             try {
+                // 更新Environment
                 environment.setConfigCenterFirst(configCenter.isHighestPriority());
                 environment.updateExternalConfigurationMap(parseProperties(configContent));
                 environment.updateAppExternalConfigurationMap(parseProperties(appConfigContent));
             } catch (IOException e) {
                 throw new IllegalStateException("Failed to parse configurations from Config Center.", e);
             }
+            // 返回通过该ConfigCenterConfig创建的DynamicConfiguration对象
             return dynamicConfiguration;
         }
         return null;

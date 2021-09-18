@@ -30,25 +30,27 @@ import java.util.Set;
 public class PropertiesConfiguration implements Configuration {
 
     public PropertiesConfiguration() {
+        // 获取OrderedPropertiesProvider接口的全部扩展名称
         ExtensionLoader<OrderedPropertiesProvider> propertiesProviderExtensionLoader = ExtensionLoader.getExtensionLoader(OrderedPropertiesProvider.class);
         Set<String> propertiesProviderNames = propertiesProviderExtensionLoader.getSupportedExtensions();
         if (propertiesProviderNames == null || propertiesProviderNames.isEmpty()) {
             return;
         }
+        // 加载OrderedPropertiesProvider的全部实现
         List<OrderedPropertiesProvider> orderedPropertiesProviders = new ArrayList<>();
         for (String propertiesProviderName : propertiesProviderNames) {
             orderedPropertiesProviders.add(propertiesProviderExtensionLoader.getExtension(propertiesProviderName));
         }
 
-        //order the propertiesProvider according the priority descending
+        // 按优先级排序
         orderedPropertiesProviders.sort((OrderedPropertiesProvider a, OrderedPropertiesProvider b) -> {
             return b.priority() - a.priority();
         });
 
-        //load the default properties
+        // 加载默认的dubbo.properties.file配置文件，加载后的结果记录在ConfigUtils.PROPERTIES中
         Properties properties = ConfigUtils.getProperties();
 
-        //override the properties.
+        // 使用OrderedPropertiesProvider扩展实现，按序覆盖dubbo.properties.file配置文件中的默认配置
         for (OrderedPropertiesProvider orderedPropertiesProvider :
                 orderedPropertiesProviders) {
             properties.putAll(orderedPropertiesProvider.initProperties());

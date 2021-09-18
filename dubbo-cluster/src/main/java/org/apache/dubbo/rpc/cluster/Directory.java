@@ -33,22 +33,15 @@ import java.util.List;
  */
 public interface Directory<T> extends Node {
 
-    /**
-     * get service type.
-     *
-     * @return service type.
-     */
+    // 服务接口类型
     Class<T> getInterface();
 
-    /**
-     * list invokers.
-     *
-     * @return invokers
-     */
+    // 根据传入的Invocation请求，过滤自身维护的invoker集合，返回符合条件的invoker
     List<Invoker<T>> list(Invocation invocation) throws RpcException;
 
     List<Invoker<T>> getAllInvokers();
 
+    // Consumer端的URL
     URL getConsumerUrl();
 
 }

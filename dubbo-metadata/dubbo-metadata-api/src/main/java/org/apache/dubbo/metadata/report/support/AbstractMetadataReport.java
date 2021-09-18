@@ -86,23 +86,31 @@ public abstract class AbstractMetadataReport implements MetadataReport {
     // Log output
     protected final Logger logger = LoggerFactory.getLogger(getClass());
 
+    // 元数据中心的URL，包含元数据中心的地址
+    private URL reportURL;
+    // 本地磁盘缓存，用来缓存上报的数据
+    File file;
+    // 内存缓存
+    final Map<MetadataIdentifier, Object> allMetadataReports = new ConcurrentHashMap<>(4);
+    // 用于同步本地内存缓存和文件缓存 && 完成异步上报功能
+    private final ExecutorService reportCacheExecutor = Executors.newFixedThreadPool(1, new NamedThreadFactory("DubboSaveMetadataReport", true));
+    // 暂存上报失败的元数据，后面有定时任务重试
+    final Map<MetadataIdentifier, Object> failedReports = new ConcurrentHashMap<>(4);
+    // 是否同步上报数据
+    boolean syncReport;
+    // 最后一次元数据上报的版本，单调递增
+    private final AtomicLong lastCacheChanged = new AtomicLong();
+    // 定时任务重试
+    public MetadataReportRetry metadataReportRetry;
+    // 当前MetadataReportRetry
+    private AtomicBoolean initialized = new AtomicBoolean(false);
     // Local disk cache, where the special key value.registries records the list of metadata centers, and the others are the list of notified service providers
     final Properties properties = new Properties();
-    private final ExecutorService reportCacheExecutor = Executors.newFixedThreadPool(1, new NamedThreadFactory("DubboSaveMetadataReport", true));
-    final Map<MetadataIdentifier, Object> allMetadataReports = new ConcurrentHashMap<>(4);
 
-    private final AtomicLong lastCacheChanged = new AtomicLong();
-    final Map<MetadataIdentifier, Object> failedReports = new ConcurrentHashMap<>(4);
-    private URL reportURL;
-    boolean syncReport;
-    // Local disk cache file
-    File file;
-    private AtomicBoolean initialized = new AtomicBoolean(false);
-    public MetadataReportRetry metadataReportRetry;
 
     public AbstractMetadataReport(URL reportServerURL) {
         setUrl(reportServerURL);
-        // Start file save timer
+        // 默认的本地文件缓存地址
         String defaultFilename = System.getProperty("user.home") + "/.dubbo/dubbo-metadata-" + reportServerURL.getParameter(APPLICATION_KEY) + "-" + reportServerURL.getAddress().replaceAll(":", "-") + ".cache";
         String filename = reportServerURL.getParameter(FILE_KEY, defaultFilename);
         File file = null;
@@ -119,7 +127,9 @@ public abstract class AbstractMetadataReport implements MetadataReport {
             }
         }
         this.file = file;
+        // 将file文件中的内容加载到properties字段中
         loadProperties();
+        // 是否同步上报yuaNshuju
         syncReport = reportServerURL.getParameter(SYNC_REPORT_KEY, false);
         metadataReportRetry = new MetadataReportRetry(reportServerURL.getParameter(RETRY_TIMES_KEY, DEFAULT_METADATA_REPORT_RETRY_TIMES),
                 reportServerURL.getParameter(RETRY_PERIOD_KEY, DEFAULT_METADATA_REPORT_RETRY_PERIOD));

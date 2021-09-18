@@ -47,16 +47,19 @@ public class RestProtocolSubscribedURLsSynthesizer implements SubscribedURLsSynt
 
     @Override
     public List<URL> synthesize(URL subscribedURL, Collection<ServiceInstance> serviceInstances) {
-
+        // 获取Protocol
         String protocol = subscribedURL.getParameter(PROTOCOL_KEY);
 
         return serviceInstances.stream().map(serviceInstance -> {
             URLBuilder urlBuilder = new URLBuilder()
                     .setProtocol(protocol)
+                // 使用ServiceInstance的host、port
                     .setHost(serviceInstance.getHost())
                     .setPort(serviceInstance.getPort())
+                // 设置业务接口
                     .setPath(subscribedURL.getServiceInterface())
                     .addParameter(SIDE_KEY, PROVIDER)
+                // 设置Service Name
                     .addParameter(APPLICATION_KEY, serviceInstance.getServiceName())
                     .addParameter(REGISTER_KEY, TRUE.toString());
 

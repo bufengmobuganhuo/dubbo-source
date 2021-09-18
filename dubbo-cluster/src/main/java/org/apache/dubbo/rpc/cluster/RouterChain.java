@@ -32,7 +32,7 @@ import java.util.stream.Collectors;
  */
 public class RouterChain<T> {
 
-    // full list of addresses from registry, classified by method name.
+    //
     private List<Invoker<T>> invokers = Collections.emptyList();
 
     // containing all routers, reconstruct every time 'route://' urls change.
@@ -47,13 +47,14 @@ public class RouterChain<T> {
     }
 
     private RouterChain(URL url) {
+        // 通过ExtensionLoader加载激活的RouterFactory
         List<RouterFactory> extensionFactories = ExtensionLoader.getExtensionLoader(RouterFactory.class)
                 .getActivateExtension(url, "router");
-
+        // 遍历所有RouterFactory，调用其getRouter()方法创建相应的Router对象
         List<Router> routers = extensionFactories.stream()
                 .map(factory -> factory.getRouter(url))
                 .collect(Collectors.toList());
-
+        // 初始化builtInRouters字段和routers字段
         initWithRouters(routers);
     }
 

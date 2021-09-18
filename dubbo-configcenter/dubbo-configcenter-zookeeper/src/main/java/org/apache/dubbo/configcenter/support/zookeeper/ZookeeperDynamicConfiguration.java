@@ -61,6 +61,7 @@ public class ZookeeperDynamicConfiguration implements DynamicConfiguration {
 
     ZookeeperDynamicConfiguration(URL url, ZookeeperTransporter zookeeperTransporter) {
         this.url = url;
+        // 根据URL中的config.namespace参数（默认为dubbo），确定配置中心ZNode的根路径
         rootPath = PATH_SEPARATOR + url.getParameter(CONFIG_NAMESPACE_KEY, DEFAULT_GROUP) + "/config";
 
         initializedLatch = new CountDownLatch(1);
@@ -70,8 +71,9 @@ public class ZookeeperDynamicConfiguration implements DynamicConfiguration {
         zkClient = zookeeperTransporter.connect(url);
         zkClient.addDataListener(rootPath, cacheListener, executor);
         try {
-            // Wait for connection
+            // 获取当前线程阻塞等待zookeeper监听器注册成功的时长上限
             long timeout = url.getParameter("init.timeout", 5000);
+            // 阻塞当前线程，等待监听器注册完成
             boolean isCountDown = this.initializedLatch.await(timeout, TimeUnit.MILLISECONDS);
             if (!isCountDown) {
                 throw new IllegalStateException("Failed to receive INITIALIZED event from zookeeper, pls. check if url "

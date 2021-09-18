@@ -49,78 +49,37 @@ public interface ServiceDiscovery extends Prioritized {
 
     // ==================================== Lifecycle ==================================== //
 
-    /**
-     * Initializes the {@link ServiceDiscovery}
-     *
-     * @param registryURL the {@link URL url} to connect service registry
-     * @throws Exception If met with error
-     */
+    // 初始化当前ServiceDiscovery实例，传入的是注册中心的URL
     void initialize(URL registryURL) throws Exception;
 
-    /**
-     * Destroy the {@link ServiceDiscovery}
-     *
-     * @throws Exception If met with error
-     */
+    // 销毁当前ServiceDiscovery实例
     void destroy() throws Exception;
 
     // ==================================================================================== //
-
     // =================================== Registration =================================== //
 
-    /**
-     * Registers an instance of {@link ServiceInstance}.
-     *
-     * @param serviceInstance an instance of {@link ServiceInstance} to be registered
-     * @throws RuntimeException if failed
-     */
+    // 发布传入的ServiceInstance实例
     void register(ServiceInstance serviceInstance) throws RuntimeException;
 
-    /**
-     * Updates the registered {@link ServiceInstance}.
-     *
-     * @param serviceInstance the registered {@link ServiceInstance}
-     * @throws RuntimeException if failed
-     */
+    // 更新传入的ServiceInstance实例
     void update(ServiceInstance serviceInstance) throws RuntimeException;
 
-    /**
-     * Unregisters an instance of {@link ServiceInstance}.
-     *
-     * @param serviceInstance an instance of {@link ServiceInstance} to be deregistered
-     * @throws RuntimeException if failed
-     */
+    // 注销传入的ServiceInstance实例
     void unregister(ServiceInstance serviceInstance) throws RuntimeException;
 
     // ==================================================================================== //
-
     // ==================================== Discovery ===================================== //
 
-    /**
-     * Get the default size of pagination query
-     *
-     * @return the default value is 100
-     */
+    // 分页查询时默认每页的条数
     default int getDefaultPageSize() {
         return 100;
     }
 
-    /**
-     * Gets all service names
-     *
-     * @return non-null read-only {@link Set}
-     */
+    // 查询全部Service Name
     Set<String> getServices();
 
-    /**
-     * Gets all {@link ServiceInstance service instances} by the specified service name.
-     *
-     * @param serviceName the service name
-     * @return non-null {@link List}
-     * @throws NullPointerException if <code>serviceName</code> is <code>null</code> is <code>null</code>
-     */
+    // 根据ServiceName分页查询ServiceInstance
     default List<ServiceInstance> getInstances(String serviceName) throws NullPointerException {
-
         List<ServiceInstance> allInstances = new LinkedList<>();
 
         int offset = 0;

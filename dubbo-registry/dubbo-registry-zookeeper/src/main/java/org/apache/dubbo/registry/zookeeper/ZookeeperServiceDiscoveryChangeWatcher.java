@@ -47,10 +47,11 @@ public class ZookeeperServiceDiscoveryChangeWatcher implements CuratorWatcher {
 
     @Override
     public void process(WatchedEvent event) throws Exception {
-
+        // 获取事件类型
         Watcher.Event.EventType eventType = event.getType();
-
+        // 孩子节点发生变化 or 节点数据发生变化
         if (NodeChildrenChanged.equals(eventType) || NodeDataChanged.equals(eventType)) {
+            //
             zookeeperServiceDiscovery.dispatchServiceInstancesChangedEvent(serviceName);
         }
     }

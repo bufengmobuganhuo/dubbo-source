@@ -31,12 +31,13 @@ public abstract class ServiceInstanceMetadataCustomizer implements ServiceInstan
 
     @Override
     public final void customize(ServiceInstance serviceInstance) {
-
+        // 获取ServiceInstance对象的metadata字段
         Map<String, String> metadata = serviceInstance.getMetadata();
-
+        // 生成要添加到metadata集合的KV值，子类实现
         String propertyName = resolveMetadataPropertyName(serviceInstance);
+        // 子类实现
         String propertyValue = resolveMetadataPropertyValue(serviceInstance);
-
+        // 判断待添加的KV值是否为空
         if (!isBlank(propertyName) && !isBlank(propertyValue)) {
             String existedValue = metadata.get(propertyName);
             boolean put = existedValue == null || isOverride();

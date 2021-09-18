@@ -81,10 +81,12 @@ public class ConditionRouter extends AbstractRouter {
             if (rule == null || rule.trim().length() == 0) {
                 throw new IllegalArgumentException("Illegal route rule!");
             }
+            // 将路由规则中的"consumer."和"provider."字符串清理掉
             rule = rule.replace("consumer.", "").replace("provider.", "");
             int i = rule.indexOf("=>");
             String whenRule = i < 0 ? null : rule.substring(0, i).trim();
             String thenRule = i < 0 ? rule.trim() : rule.substring(i + 2).trim();
+            // 解析whenRule和thenRule，得到whenCondition和thenCondition两个条件集合
             Map<String, MatchPair> when = StringUtils.isBlank(whenRule) || "true".equals(whenRule) ? new HashMap<String, MatchPair>() : parseRule(whenRule);
             Map<String, MatchPair> then = StringUtils.isBlank(thenRule) || "false".equals(thenRule) ? null : parseRule(thenRule);
             // NOTE: It should be determined on the business level whether the `When condition` can be empty or not.
@@ -101,12 +103,14 @@ public class ConditionRouter extends AbstractRouter {
         if (StringUtils.isBlank(rule)) {
             return condition;
         }
-        // Key-Value pair, stores both match and mismatch conditions
+        // 负责存储匹配/不匹配的条件
         MatchPair pair = null;
         // Multiple values
         Set<String> values = null;
+        // 按照ROUTE_PATTERN指定的正则表达式匹配整个条件表达式
         final Matcher matcher = ROUTE_PATTERN.matcher(rule);
         while (matcher.find()) { // Try to match one by one
+            // 每个匹配结果有两部分(分组)，第一部分是分隔符，第二部分是内容
             String separator = matcher.group(1);
             String content = matcher.group(2);
             // Start part of the condition expression.

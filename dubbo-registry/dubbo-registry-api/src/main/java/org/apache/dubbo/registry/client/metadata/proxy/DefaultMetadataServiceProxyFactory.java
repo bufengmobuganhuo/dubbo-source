@@ -63,23 +63,23 @@ public class DefaultMetadataServiceProxyFactory extends BaseMetadataServiceProxy
                 = ExtensionLoader.getExtensionLoader(MetadataServiceURLBuilder.class);
 
         Map<String, String> metadata = serviceInstance.getMetadata();
-        // METADATA_SERVICE_URLS_PROPERTY_NAME is a unique key exists only on instances of spring-cloud-alibaba.
+        // 在使用Spring Cloud的时候，metadata集合中会包含METADATA_SERVICE_URLS_PROPERTY_NAME整个Key
         String dubboURLsJSON = metadata.get(METADATA_SERVICE_URLS_PROPERTY_NAME);
         if (StringUtils.isNotEmpty(dubboURLsJSON)) {
             builder = loader.getExtension(SpringCloudMetadataServiceURLBuilder.NAME);
         } else {
             builder = loader.getExtension(StandardMetadataServiceURLBuilder.NAME);
         }
-
+        // 构造MetadataService服务对应的URL集合
         List<URL> urls = builder.build(serviceInstance);
         if (CollectionUtils.isEmpty(urls)) {
             throw new IllegalStateException("You have enabled introspection service discovery mode for instance "
                     + serviceInstance + ", but no metadata service can build from it.");
         }
 
-        // Simply rely on the first metadata url, as stated in MetadataServiceURLBuilder.
+        // 引用服务，创建Invoker，注意，即使MetadataService接口使用了多种协议，这里也只会使用第一种协议
         Invoker<MetadataService> invoker = protocol.refer(MetadataService.class, urls.get(0));
-
+        // 创建MetadataService的本地代理对象
         return proxyFactory.getProxy(invoker);
     }
 }

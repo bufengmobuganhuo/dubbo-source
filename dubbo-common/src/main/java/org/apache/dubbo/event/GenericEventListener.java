@@ -53,7 +53,9 @@ public abstract class GenericEventListener implements EventListener<Event> {
     private final Map<Class<?>, Set<Method>> handleEventMethods;
 
     protected GenericEventListener() {
+        // 找出当前GenericEventListener实现的全部onEvent()方法
         this.onEventMethod = findOnEventMethod();
+        //
         this.handleEventMethods = findHandleEventMethods();
     }
 
@@ -64,7 +66,12 @@ public abstract class GenericEventListener implements EventListener<Event> {
     private Map<Class<?>, Set<Method>> findHandleEventMethods() {
         // Event class for key, the eventMethods' Set as value
         Map<Class<?>, Set<Method>> eventMethods = new HashMap<>();
+        // 遍历当前GenericEventListener子类的全部方法
         of(getClass().getMethods())
+            // 过滤得到onEvent()方法，具体过滤条件在isHandleEventMethod()方法之中：
+            // 1.方法必须是public的
+            // 2.方法参数列表只有一个参数，且该参数为Event子类
+            // 3.方法返回值为void，且没有声明抛出异常
                 .filter(this::isHandleEventMethod)
                 .forEach(method -> {
                     Class<?> paramType = method.getParameterTypes()[0];
